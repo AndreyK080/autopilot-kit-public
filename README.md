@@ -33,37 +33,40 @@ python -m kit install      # ставит Autopilot из vendor/ и навыки
 python -m kit doctor       # ждём FAIL 0
 ```
 
-Затем выберите привод и откройте **новый чат** приложения:
+Дальше — по вашему приложению. Везде: **новый чат** открывайте после установки (навыки читаются при старте) и **в папке проекта**.
 
 <details>
 <summary><b>Claude Desktop / Claude Code</b> — подписка Anthropic (Opus, Sonnet, Haiku)</summary>
 
-```powershell
-python -m kit profile set --preset quality --drive claude     # для Pro: --preset economy
-```
-В чате: `/autopilot-setup` (по желанию — мастер профиля). Проект: открыть папку, `/autopilot-init`, затем `/autopilot-roles` и
-`/autopilot semi: <что построить>`.
+1. Установите kit (команды выше).
+2. Выберите профиль: `python -m kit profile set --preset quality --drive claude` (для тарифа Pro — `--preset economy`).
+3. Откройте Claude в папке проекта, примите доверие к папке (без него не работает гейт).
+4. Один раз настройте проект: `/autopilot-init`.
+5. Откройте **новый чат** в той же папке и напишите: `/autopilot-roles`, затем `/autopilot full: <что построить>`.
+6. Большой проект из нескольких этапов — вместо п. 4–5: `/autopilot-program <цель или файл плана>`.
 </details>
 
 <details>
 <summary><b>Codex</b> — подписка ChatGPT</summary>
 
-```powershell
-python -m kit profile set --preset quality --drive codex
-```
-Имена моделей — в `kit/data/models.json`: проверьте, что они есть в вашей подписке. В чате: «Используй навык autopilot-init», затем
-`$autopilot-roles` и `$autopilot semi: <что построить>`. Оркестратор программ в Codex написан и покрыт тестами, но живая проверка ещё
-не пройдена ([docs/CODEX_SPIKE.md](docs/CODEX_SPIKE.md)).
+1. Войдите в Codex (`codex login status`) и установите kit (команды выше).
+2. Профиль: `python -m kit profile set --preset quality --drive codex`. Модели Codex — в `kit/data/models.json`: проверьте, что они есть в вашей подписке.
+3. Откройте Codex в папке проекта; при первом запуске подтвердите хук проекта в `/hooks`.
+4. Один раз настройте проект: «Используй навык autopilot-init».
+5. Откройте **новый чат** в той же папке: «Используй навык autopilot-roles», затем `$autopilot full: <что построить>`.
+6. Большой проект из нескольких этапов: `$autopilot-program <цель или файл плана>`.
+
+Одиночный `$autopilot` работает надёжнее; оркестратор программ в Codex написан и покрыт тестами, но живая проверка ещё не пройдена ([docs/CODEX_SPIKE.md](docs/CODEX_SPIKE.md)).
 </details>
 
 <details>
 <summary><b>Claude Desktop через гейтвей</b> — сторонние модели</summary>
 
-```powershell
-python -m kit profile set --preset desktop-gate --drive claude-gate
-```
-Так же, как в Claude. Лимитов подписки нет, паузы по ним не создаются; у гейтвея нет «средней» модели, поэтому исполнитель работает
-на сильной (пресет `desktop-gate`).
+1. Приложение Claude Desktop (сборка 3p) должно быть уже подключено к гейтвею организации (адрес и токен задаёт организация; kit их не трогает).
+2. Установите kit (команды выше); `python -m kit doctor` должен показать гейтвей как OK.
+3. Профиль: `python -m kit profile set --preset desktop-gate --drive claude-gate`. У гейтвея нет «средней» модели, поэтому исполнитель работает на сильной.
+4. Дальше как в Claude: папка проекта и доверие к ней → `/autopilot-init` → **новый чат** → `/autopilot-roles` → `/autopilot full: <что построить>` (или `/autopilot-program …`).
+5. Лимитов подписки нет: паузы по ним не создаются; за прерванными этапами следит сторож.
 </details>
 
 <details>
@@ -75,11 +78,18 @@ python -m kit profile set --preset desktop-gate --drive claude-gate
 > проверь `python -m kit doctor`, зафиксируй привод и доложи. Не задавай API-ключи, не меняй файлы оригинального Autopilot, ничего не пушь.
 </details>
 
-## Как работать
+## Режимы запуска
 
-- **Один прогон:** `/autopilot-init` → `/autopilot-roles` → `/autopilot semi: <задача>` (в Codex — `$autopilot…`).
-- **Проект из нескольких этапов:** `/autopilot-program <цель или план>` — оркестратор разбивает работу, один раз спрашивает всё нужное,
-  запускает каждый этап новой сессией, показывает дашборд и сообщает, когда нужны вы.
+`/autopilot <режим>: <задача>` — режим решает, как часто вас спрашивают:
+
+| Режим | Что происходит |
+|---|---|
+| **`full`** — полный автомат | работает сам, вопросы — только перед необратимым (публикация, удаление, оплата) |
+| `semi` — полуавтомат (по умолчанию) | спрашивает только на настоящих развилках |
+| `interview` | сначала подробно расспрашивает о задаче |
+| `manual` | то же плюс согласование спецификации и плана |
+
+Режимы — часть оригинального Autopilot; kit их не меняет. Проект из нескольких этапов ведёт `/autopilot-program`.
 
 <details>
 <summary>Что делает оркестратор программы</summary>
