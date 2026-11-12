@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"<~>/.autopilot-kit/bin/gate.py\" --hook codex-stop",
+            "timeout": 1200
+          }
+        ]
+      }
+    ]
+  }
+}

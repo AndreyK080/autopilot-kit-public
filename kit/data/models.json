@@ -1,0 +1,17 @@
+{
+  "updated": "2026-11-07",
+  "claude": {
+    "tiers": {"strong": "opus", "balanced": "sonnet", "fast": "haiku"},
+    "efforts": ["low", "medium", "high", "xhigh", "max"]
+  },
+  "codex": {
+    "tiers": {"strong": "gpt-6-astra", "balanced": "gpt-6.1-sol", "fast": "gpt-6-luna"},
+    "efforts": ["low", "medium", "high", "xhigh", "max"]
+  },
+  "claude-gate": {
+    "tiers": {"strong": "opus", "balanced": "sonnet", "fast": "haiku"},
+    "efforts": ["low", "medium", "high", "xhigh", "max"],
+    "gateway": {"opus": "qwen3.8-max", "sonnet": "qwen3.8-flash", "haiku": "qwen3.6-flash"},
+    "note": "Привод Claude Desktop Gate (D48): приложение Claude Desktop 3p с гейтвеем организации (token-plan). Файлы агентов пишут те же псевдонимы opus/sonnet/haiku — гейтвей сам отображает их в свои модели (по ANTHROPIC_DEFAULT_*_MODEL в ~/.claude/settings.json; живая проверка 07.11.2026: executor на sonnet оказался на qwen3.8-flash). Поле gateway — справочное; пресет desktop-gate держит исполнителя на сильной модели, потому что средней модели у гейтвея нет."
+  }
+}

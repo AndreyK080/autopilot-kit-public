@@ -1,0 +1,5 @@
+name = "autopilot_reviewer_spec"
+description = "Роль reviewer-spec в Autopilot. Файл создан autopilot-kit."
+model = "gpt-6-astra"
+model_reasoning_effort = "high"
+developer_instructions = "Ты роль reviewer-spec Autopilot. Следуй заданию оркестратора. Не меняй свою роль."

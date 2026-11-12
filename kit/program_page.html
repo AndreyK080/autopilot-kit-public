@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Программа — autopilot</title>
+<!-- autopilot-kit: дашборд программы (D21, D25). Читает program.js (пишет program.py) и state.js текущего прогона Autopilot,
+     сам опрашивает их каждые 5 секунд. Цвета — как у дашборда прогона Autopilot; масштаб — под боковую панель. -->
+<style>
+  :root{
+    --bg:#F2F2F4; --card:#fff; --inset:#F4F4F6; --line:rgba(0,0,0,.07); --line2:rgba(0,0,0,.11);
+    --tx:#111113; --tx2:#3A3A3C; --mut:#6B6B70; --quiet:#8E8E93;
+    --hero:#2F45E0; --done:#17864A; --done-soft:#E2F3E9; --done-tx:#126B3B;
+    --now:#FF6B35; --now-on:#1A0D06; --now-soft:#FFE9DF; --now-tx:#AD3D0E;
+    --bad:#DC2626; --bad-soft:#FDE6E6; --bad-tx:#B01C1C; --idle:#D4D4D9;
+    --sh:0 1px 2px rgba(0,0,0,.04),0 8px 20px -16px rgba(20,24,40,.2);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#17181B; --card:#222327; --inset:#2C2D32; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+      --tx:#F2F2F3; --tx2:#C7C7CC; --mut:#A3A3AA; --quiet:#85858C;
+      --hero:#2639C2; --done:#1E9A56; --done-soft:#1C3527; --done-tx:#5BD68C;
+      --now-soft:#43271C; --now-tx:#FF8A5C; --bad:#E5383B; --bad-soft:#47201F; --bad-tx:#FF8B8B; --idle:#4A4B51;
+      --sh:0 1px 0 rgba(255,255,255,.03) inset,0 8px 20px -16px rgba(0,0,0,.75);
+      color-scheme:dark;
+    }
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--tx);
+    font:14px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+  .tnum{font-variant-numeric:tabular-nums}
+  .wrap{max-width:1100px;margin:0 auto;padding:14px 16px 24px;display:flex;flex-direction:column;gap:12px;min-width:0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--sh);padding:14px 16px;min-width:0}
+  .wt{font-size:14.5px;font-weight:650;margin:0}
+  .whead{display:flex;align-items:baseline;justify-content:space-between;gap:4px 10px;margin-bottom:10px;flex-wrap:wrap}
+  .whead>span{font-size:12.5px;color:var(--mut)}
+  a{color:inherit}
+  .ic{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+  /* шапка: короткое имя, чипы, время, обновить; полная цель — одной строкой */
+  .head{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap}
+  .head h1{margin:0;font-size:18px;font-weight:700;letter-spacing:-.02em}
+  .chip{display:inline-flex;align-items:center;height:22px;padding:0 8px;border-radius:999px;border:1px solid var(--line2);font-size:12px;font-weight:600;color:var(--tx2)}
+  .when{font-size:12px;color:var(--mut);margin-left:auto}
+  .lost{font-size:12px;font-weight:650;color:var(--bad-tx);background:var(--bad-soft);border-radius:999px;padding:1px 8px}
+  .iconbtn{appearance:none;width:28px;height:28px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--tx);cursor:pointer;display:inline-flex;align-items:center;justify-content:center}
+  .iconbtn.busy svg{animation:spin .8s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .goal{font-size:12.5px;color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:-6px}
+
+  /* плашка состояния */
+  .hero{--h-tx:#fff;--h-mut:rgba(255,255,255,.8);--h-track:rgba(255,255,255,.24);
+    border-radius:18px;padding:16px 18px;display:flex;flex-direction:column;gap:12px;background:var(--hero);color:var(--h-tx);min-width:0}
+  .hero.ask{background:#FF6B35;--h-tx:#1A0D06;--h-mut:rgba(26,13,6,.74);--h-track:rgba(26,13,6,.16)}
+  .hero.won{background:#17864A;--h-track:rgba(255,255,255,.22)}
+  .hero.pause{background:#6D28D9;--h-track:rgba(255,255,255,.22)}
+  .hero.bad{background:#C81E1E;--h-track:rgba(255,255,255,.22)}
+  .state{display:flex;align-items:center;gap:7px;font-size:12.5px;font-weight:700}
+  .hero h2{margin:4px 0 0;font-size:20px;line-height:1.2;font-weight:700;letter-spacing:-.02em;overflow-wrap:anywhere}
+  .lead{margin:4px 0 0;font-size:13.5px;color:var(--h-mut);overflow-wrap:anywhere}
+  .lead b{color:var(--h-tx);font-weight:650}
+  .hint{display:inline-block;margin-top:8px;padding:6px 12px;border-radius:12px;background:#1A0D06;color:#fff;font-size:13px;font-weight:600}
+  .live{width:8px;height:8px;border-radius:50%;background:var(--now);outline:2px solid rgba(255,255,255,.9);display:inline-block;flex:0 0 auto;animation:pulse 1.8s cubic-bezier(.16,1,.3,1) infinite}
+  .hero.ask .live{background:#1A0D06;outline:0}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(255,107,53,.6)}70%{box-shadow:0 0 0 7px rgba(255,107,53,0)}100%{box-shadow:0 0 0 0 rgba(255,107,53,0)}}
+  .stats{display:flex;align-items:baseline;gap:4px 14px;flex-wrap:wrap;padding-top:10px;border-top:1px solid var(--h-track);font-size:13px;color:var(--h-mut)}
+  .stats .pct{font-size:28px;line-height:1;font-weight:700;letter-spacing:-.03em;color:var(--h-tx);font-variant-numeric:tabular-nums}
+  .stats .pct small{font-size:15px;font-weight:600}
+  .stats b{color:var(--h-tx);font-weight:650;font-variant-numeric:tabular-nums}
+  .stats .eta{margin-left:auto}
+  .track{display:grid;gap:5px}
+  .seg{height:8px;border-radius:3px;background:var(--h-track);overflow:hidden}
+  .seg i{display:block;height:100%;border-radius:3px;transition:width .6s cubic-bezier(.16,1,.3,1)}
+  .s-done .seg i{width:100%;background:#21A35B}
+  .hero.won .s-done .seg i,.hero.bad .s-done .seg i,.hero.pause .s-done .seg i{background:#fff}
+  .hero.ask .s-done .seg i{background:#1A0D06}
+  .s-now .seg i{background-color:var(--now)}
+  .hero.ask .s-now .seg i{background-color:#fff}
+  .s-fail .seg i{width:100%;background:#fff}
+  .stripes{background-image:linear-gradient(135deg,rgba(255,255,255,.28) 25%,transparent 25%,transparent 50%,rgba(255,255,255,.28) 50%,rgba(255,255,255,.28) 75%,transparent 75%,transparent);background-size:16px 16px;animation:stripes 1.1s linear infinite}
+  @keyframes stripes{to{background-position:16px 0}}
+  .s-name,.s-time{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+  .s-name{margin-top:6px;font-size:12px;font-weight:650}
+  .s-pend .s-name{color:var(--h-mut);font-weight:500}
+  .s-time{font-size:11.5px;color:var(--h-mut)}
+  .track.compact .s-name,.track.compact .s-time{font-size:11px;letter-spacing:-.02em;text-overflow:clip}
+  .next{font-size:13px;color:var(--h-mut);overflow-wrap:anywhere}
+  /* вторая плашка — внутри текущего этапа */
+  .hero.sub{padding:12px 18px 14px;gap:10px;filter:saturate(.92)}
+  .hero.sub .stats{border-top:0;padding-top:0}
+  .hero.sub .pct{font-size:22px}
+  .hero .stats a{color:var(--h-tx);font-weight:650;text-decoration:none;border-bottom:1px solid var(--h-track)}
+  .phases-track .s-name{font-size:11px;letter-spacing:-.01em}
+  .phases-track .short{display:none}
+  @media (max-width:760px){.phases-track .full{display:none}.phases-track .short{display:inline}}
+  .phases-track .s-time{font-size:11px}
+  .s-skip .seg{background:repeating-linear-gradient(135deg,var(--h-track) 0 4px,transparent 4px 8px)}
+  .tickets{display:flex;gap:3px;flex-wrap:wrap}
+  .tickets i{flex:1 1 10px;max-width:28px;height:6px;border-radius:2px;background:var(--h-track)}
+  .tickets i.t-done{background:#21A35B}.tickets i.t-now{background:var(--now)}.tickets i.t-bad{background:#fff}
+  .hero.ask .tickets i.t-done{background:#1A0D06}
+  .next b{color:var(--h-tx);font-weight:650}
+
+  /* колонки */
+  .cols{display:grid;grid-template-columns:minmax(0,3fr) minmax(0,2fr);gap:12px;align-items:start}
+  .col{display:flex;flex-direction:column;gap:12px;min-width:0}
+
+  /* этапы */
+  .tl{display:grid;grid-template-columns:38px minmax(0,1fr) 64px;gap:2px 8px;align-items:center;padding:5px 0;border-top:1px solid var(--line)}
+  .tl:first-of-type{border-top:0}
+  .tl-id{font-size:12.5px;font-weight:750;color:var(--quiet)}
+  .tl-id.on{color:var(--tx)}
+  .bar{height:28px;border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 4px 0 10px;font-size:13px;font-weight:650;min-width:0;position:relative;overflow:hidden}
+  .bar .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0;position:relative}
+  .bar .fill{position:absolute;inset:0 auto 0 0;background:var(--now);opacity:.22}
+  .chipin{flex:0 0 auto;height:20px;padding:0 7px;border-radius:999px;display:inline-flex;align-items:center;background:rgba(255,255,255,.22);font-size:11.5px;font-weight:700;white-space:nowrap;position:relative}
+  .f-done{background:var(--done);color:#fff}
+  .f-now{background:var(--now-soft);color:var(--now-tx)}
+  .f-now .chipin{background:var(--now);color:var(--now-on)}
+  .f-ask{background:#FF6B35;color:#1A0D06}
+  .f-ask .chipin{background:rgba(26,13,6,.12)}
+  .f-bad{background:var(--bad);color:#fff}
+  .f-wait{background:transparent;color:var(--mut);border:1px dashed var(--idle)}
+  .f-wait .chipin{background:var(--inset);color:var(--mut)}
+  .tl-time{font-size:12px;font-weight:650;text-align:right;color:var(--mut);white-space:nowrap;font-variant-numeric:tabular-nums}
+  .tl-time.now{color:var(--now-tx)}
+  .tl-note{grid-column:2/4;font-size:12.5px;line-height:1.4;color:var(--mut);overflow-wrap:anywhere}
+  .tl-note.bad{color:var(--bad-tx)}
+  .tl-note b{color:var(--tx2);font-weight:650}
+  .clamp{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .q{display:inline-flex;flex-wrap:wrap;gap:4px;margin-left:4px;vertical-align:1px}
+  .pill{display:inline-flex;align-items:center;height:18px;padding:0 7px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap}
+  .p-done{background:var(--done-soft);color:var(--done-tx)}
+  .p-now{background:var(--now-soft);color:var(--now-tx)}
+  .p-mut{background:var(--inset);color:var(--mut)}
+  .p-bad{background:var(--bad-soft);color:var(--bad-tx)}
+
+  /* сейчас: фазы прогона одной полосой */
+  .phases{display:flex;flex-wrap:wrap;gap:4px}
+  .ph{display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 8px;border-radius:999px;background:var(--inset);font-size:12px;font-weight:600;color:var(--quiet)}
+  .ph i{width:7px;height:7px;border-radius:50%;background:var(--idle)}
+  .ph.done{color:var(--tx2)} .ph.done i{background:var(--done)}
+  .ph.now{background:var(--now-soft);color:var(--now-tx)} .ph.now i{background:var(--now)}
+  .ph em{font-style:normal;font-weight:500;color:var(--mut);font-variant-numeric:tabular-nums}
+  .kv{display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:10px;font-size:12.5px;color:var(--mut)}
+  .kv b{color:var(--tx);font-weight:650;font-variant-numeric:tabular-nums}
+  .stack{display:flex;height:6px;border-radius:3px;overflow:hidden;gap:2px;background:var(--inset);margin-top:8px}
+  .stack i{display:block;height:100%;flex:1}
+  .run-link{display:inline-flex;align-items:center;gap:6px;margin-top:10px;height:28px;padding:0 12px;border-radius:999px;background:var(--tx);color:var(--card);text-decoration:none;font-size:12.5px;font-weight:650}
+
+  /* решения */
+  .dec{padding:7px 0;border-top:1px solid var(--line);font-size:12.5px;color:var(--tx2);overflow-wrap:anywhere}
+  .dec:first-of-type{border-top:0}
+  .dec b{display:block;color:var(--tx);font-weight:650;margin-top:2px}
+  .dec .id{font-weight:700;color:var(--quiet);margin-right:4px}
+  details{margin-top:6px}
+  summary{cursor:pointer;font-size:12.5px;font-weight:650;color:var(--mut);padding:4px 0}
+  .empty{color:var(--quiet);font-size:12.5px;margin:0}
+  .foot{font-size:11.5px;color:var(--quiet);text-align:center}
+  .boot{padding:60px 16px;text-align:center;color:var(--mut)}
+
+  @media (max-width:820px){.cols{grid-template-columns:minmax(0,1fr)}}
+  @media (max-width:480px){.stats .eta{margin-left:0}.tl{grid-template-columns:32px minmax(0,1fr) 54px}}
+</style>
+</head>
+<body>
+<div class="wrap" id="app">
+  <div class="boot">Жду данные программы — <code>.autopilot/program.js</code>…</div>
+</div>
+<script>window.PROGRAM = null; window.STATE = null;</script>
+<script src="program.js"></script>
+<script src="state.js"></script>
+<script>
+"use strict";
+const POLL_MS = 5000;
+const BUILD = '__PAGE_BUILD__';    // версия этой страницы; program.js несёт актуальную — отличается: страница перезагружается сама
+const LOAD_TIMEOUT_MS = 8000;     // файл, который не ответил за это время, считается потерянным (приложение прячет и замораживает неактивную панель)
+const LOST_AFTER_MS = 30000;      // столько без свежих данных — на странице «нет связи», и опрос идёт дальше
+const STALE_MS = 60 * 60 * 1000;  // час без обновлений state.js у идущего прогона
+const COMPACT_FROM = 6;           // больше этапов — под шкалой только ID и короткие отметки
+// короткие подписи фаз для узкой боковой панели (полные — при наведении и на широком экране)
+const SHORT_PHASE = {preflight: 'Старт', manifest: 'Требов.', briefing: 'Бриф.', spec: 'Спец.', plan: 'План', build: 'Разраб.', review: 'Ревью', final: 'Приём.'};
+const $app = document.getElementById('app');
+let decisionsOpen = false;        // свёрнутые решения не разворачиваются заново при каждой перерисовке
+
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const ms = t => { const v = Date.parse(t); return isNaN(v) ? null : v; };
+
+function dur(msec) {
+  if (msec == null || msec < 0) return '—';
+  const m = Math.round(msec / 60000);
+  if (m < 1) return '<1 мин';
+  if (m < 60) return m + ' мин';
+  const h = Math.floor(m / 60), r = m % 60;
+  if (h < 48) return h + ' ч' + (r ? ' ' + r + ' мин' : '');
+  const d = Math.floor(h / 24), rh = h % 24;
+  return d + ' д' + (rh ? ' ' + rh + ' ч' : '');
+}
+
+// «11:12», а если не сегодня — «24.10 11:12»
+// короткая длительность для узких ячеек фаз: «23м», «4ч 59м», «2д 3ч»
+function durShort(msec) {
+  if (msec == null || msec < 0) return '';
+  const m = Math.max(1, Math.round(msec / 60000));
+  if (m < 60) return m + 'м';
+  const h = Math.floor(m / 60);
+  return h < 48 ? h + 'ч ' + (m % 60) + 'м' : Math.floor(h / 24) + 'д ' + (h % 24) + 'ч';
+}
+
+function clock(v) {
+  const d = new Date(v), now = new Date();
+  const hm = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+  return d.toDateString() === now.toDateString() ? hm : String(d.getDate()).padStart(2, '0') + '.' + String(d.getMonth() + 1).padStart(2, '0') + (d.getFullYear() === now.getFullYear() ? '' : '.' + d.getFullYear()) + ' ' + hm;
+}
+
+function ago(t) {
+  const v = ms(t);
+  if (v == null) return '—';
+  const s = Math.max(0, Math.round((Date.now() - v) / 1000));
+  if (s < 60) return 'только что';
+  if (s < 3600) return Math.round(s / 60) + ' мин назад';
+  return dur(Date.now() - v) + ' назад';
+}
+
+const ACTIVE = ['running', 'waiting'];
+
+// продолжение этапа после частичной сдачи (D23)
+const partOf = s => s && s.part > 1 ? ' · часть ' + s.part : '';
+
+// «1 этап», «2 этапа», «5 этапов»
+function plural(n, one, few, many) {
+  const a = Math.abs(n) % 100, b = a % 10;
+  return n + ' ' + (a > 10 && a < 20 ? many : b === 1 ? one : b >= 2 && b <= 4 ? few : many);
+}
+
+// короткое имя проекта для шапки: цель до « — » или «:» («проект R R2 — Deep Research…» → «проект R R2»)
+function shortName(goal) {
+  const head = String(goal || 'Программа').split(/\s[—–-]\s|:/)[0].trim();
+  return head.length > 48 ? head.slice(0, 46) + '…' : head;
+}
+
+// тот же признак, что run_belongs в program.py: прогон в папке относится к этому этапу
+function belongs(stage, run) {
+  if (!run || !stage) return false;
+  if (stage.adopted) return run.startedAt === stage.runStartedAt;
+  const a = ms(run.startedAt), b = ms(stage.startedAt);
+  return a != null && b != null && a >= b;
+}
+
+// тот же расчёт, что stage_percent в program.py: веса фаз приходят из program.js
+function stagePercent(P, stage, run) {
+  if (stage.status === 'passed') return 100;
+  if (!ACTIVE.includes(stage.status) || !belongs(stage, run)) return 0;
+  if (run.finishedAt) return 100;
+  const st = {}; (run.stages || []).forEach(s => { st[s.id] = s.status; });
+  const tickets = run.tickets || [];
+  const doneT = tickets.filter(t => t.status === 'done').length;
+  let total = 0;
+  (P.phases || []).forEach(p => {
+    if (st[p.id] === 'done' || st[p.id] === 'skipped') total += p.weight;
+    else if (st[p.id] === 'active') total += p.weight * (p.id === 'build' && tickets.length ? doneT / tickets.length : 0.5);
+  });
+  return Math.min(99, Math.floor(total));
+}
+
+function stageSpan(stage, now) {
+  const a = ms(stage.startedAt);
+  if (a == null) return null;
+  const b = stage.finishedAt ? ms(stage.finishedAt) : now;
+  return b == null ? null : b - a;
+}
+
+function compute(P, S) {
+  const now = Date.now();
+  const stages = P.stages || [];
+  const counted = stages.filter(s => s.status !== 'skipped');
+  const current = stages.find(s => ACTIVE.includes(s.status)) || null;
+  const run = current && belongs(current, S) ? S : null;
+  const pct = {}; stages.forEach(s => { pct[s.id] = stagePercent(P, s, S); });
+  const programPct = counted.length ? Math.floor(counted.reduce((a, s) => a + pct[s.id], 0) / counted.length) : 0;
+  const passed = stages.filter(s => s.status === 'passed');
+  const failed = stages.find(s => s.status === 'failed') || null;
+  const pending = counted.filter(s => s.status === 'pending');
+  const waitingRun = run && run.waiting && run.waiting.kind ? run.waiting : null;
+  const waiting = waitingRun || (current && current.status === 'waiting' ? {kind: 'вопрос', note: null} : null);
+  // прогон больше часа не обновлял state.js и не ждёт ответа: возможно, чат этапа ждёт подтверждения приложения
+  const quiet = run && !run.finishedAt && !waitingRun && ms(run.updatedAt) != null ? now - ms(run.updatedAt) : 0;
+  const stale = quiet > STALE_MS ? quiet : 0;
+  // оценка: средняя длительность сданных в программе этапов × сколько этапов осталось
+  const measured = passed.map(s => stageSpan(s, now)).filter(v => v != null && v > 0);
+  const left = pending.length + (current ? 1 - pct[current.id] / 100 : 0);
+  let eta = null, etaHow = '';
+  if (measured.length) {
+    eta = measured.reduce((a, b) => a + b, 0) / measured.length * left;
+    etaHow = 'по средней длительности сданных этапов';
+  } else if (current && pct[current.id] >= 15) {
+    eta = stageSpan(current, now) / (pct[current.id] / 100) * left;
+    etaHow = 'по темпу текущего этапа';
+  }
+  const starts = stages.map(s => ms(s.startedAt)).filter(v => v != null);
+  const elapsed = starts.length ? now - Math.min(...starts) : null;
+  return {now, stages, counted, current, run, pct, programPct, passed, failed, pending, waiting, stale, eta, etaHow, elapsed};
+}
+
+function phaseName(P, id) {
+  const p = (P.phases || []).find(x => x.id === id);
+  return p ? p.name : id;
+}
+
+function activePhase(run) {
+  return run ? (run.stages || []).find(s => s.status === 'active') : null;
+}
+
+// цвет плашек по состоянию программы: провал, ждёт владельца, пауза по лимиту, сдана, идёт
+function heroClass(P, C) {
+  if (C.failed) return 'bad';
+  if (C.waiting) return 'ask';
+  if (P.pause) return 'pause';
+  return C.counted.length && C.passed.length === C.counted.length ? 'won' : '';
+}
+
+function heroHtml(P, C) {
+  const n = C.counted.length;
+  const idx = C.current ? C.counted.indexOf(C.current) + 1 : C.passed.length;
+  const done = n && C.passed.length === n;
+  let cls = '', state = '', title = '', lead = '', hint = '';
+  if (C.failed) {
+    cls = 'bad'; state = 'Этап провален — нужно твоё решение';
+    title = esc(C.failed.id + ' · ' + C.failed.title);
+    const why = ((C.failed.verdict || {}).reasons || []).slice(0, 3).map(esc).join('; ');
+    lead = why ? 'Причины: <b>' + why + '</b>' : '';
+    hint = 'Ответь в чате оркестратора: починить, принять как есть или повторить этап';
+  } else if (C.waiting) {
+    cls = 'ask'; state = '<span class="live"></span> Ждёт тебя';
+    title = esc(C.current.id + ' · ' + C.current.title + partOf(C.current));
+    lead = C.waiting.note ? 'Вопрос: <b>' + esc(C.waiting.note) + '</b>' : 'Этап ждёт ответа владельца.';
+    const waitedMs = ms(C.waiting.since) != null ? C.now - ms(C.waiting.since) : 0;
+    if (waitedMs >= 2 * 3600000 && !(P.questions || []).some(q => q.answer == null) && !(P.ownerTasks || []).some(t => !t.done))
+      lead += ' Открытых вопросов и задач в программе нет — флаг мог устареть (оркестратору: <b>program.py why-paused</b>).';
+    hint = 'Ответь в чате оркестратора — он передаст ответ этапу';
+  } else if (P.pause) {
+    const byLimit = !P.pause.reason || P.pause.reason === 'limit';
+    cls = 'pause'; state = byLimit ? '⏸ Пауза — лимит подписки' : P.pause.reason === 'owner' ? '⏸ Пауза — стоп владельца' : '⏸ Пауза';
+    const stage = C.current || C.pending[0];
+    title = stage ? esc(stage.id + ' · ' + stage.title) : esc(shortName(P.goal));
+    const until = ms(P.pause.until);
+    if (byLimit) {
+      lead = 'Продолжу сам в <b>' + (until ? clock(until) : esc(P.pause.until)) + '</b>' +
+        (until && until > C.now ? ' — через ' + dur(until - C.now) : '') + (P.pause.window ? ' · ' + esc(P.pause.window) : '') + '. Ничего делать не нужно.';
+    } else {
+      lead = (P.pause.text ? '<b>' + esc(P.pause.text) + '</b>. ' : '') + 'Сама не продолжится: скажи оркестратору «продолжай» — он снимет паузу.';
+    }
+  } else if (done) {
+    cls = 'won'; state = 'Программа сдана';
+    title = esc(shortName(P.goal));
+    lead = 'Сданы все этапы: ' + n + '. Итог — в отчёте программы.';
+  } else if (C.current) {
+    state = '<span class="live"></span> Идёт этап ' + idx + ' из ' + n;
+    title = esc(C.current.id + ' · ' + C.current.title + partOf(C.current));
+    // фаза, тикеты и тесты — во второй плашке «Внутри этапа», здесь только панорама
+    lead = P.reserveEmpty ? '⚠ Резерв чатов пуст: когда этап сдастся, следующий не запустится без твоего слова — напиши что-нибудь оркестратору (в его ходе резерв пополняется).' : '';
+    if (C.stale) hint = 'Этап не двигается ' + dur(C.stale) + ' — возможно, ждёт подтверждения в своём чате. Загляни туда или напиши оркестратору «продолжай»';
+  } else {
+    const next = C.pending[0];
+    state = 'Между этапами';
+    title = next ? 'Следующий — ' + esc(next.id + ' · ' + next.title) : esc(shortName(P.goal));
+    lead = 'Оркестратор запустит этап, когда будут ответы на вопросы до него.' +
+      (P.reserveEmpty ? ' ⚠ Резерв чатов пуст: запуск следующего этапа попросит твоего «продолжай».' : '');
+  }
+  let eta;
+  if (done) eta = 'заняла <b>' + dur(C.elapsed) + '</b>';
+  else if (C.failed || C.waiting) eta = 'время на паузе';
+  else if (P.pause) eta = (!P.pause.reason || P.pause.reason === 'limit') ? 'продолжение в <b>' + (ms(P.pause.until) ? clock(ms(P.pause.until)) : '—') + '</b>' : 'ждёт снятия паузы';
+  else if (C.eta != null) eta = '<span title="' + esc(C.etaHow) + '">осталось <b>≈ ' + dur(C.eta) + '</b></span>';
+  else eta = 'оценка — после первого этапа';
+  const stats = '<div class="stats"><span class="pct">' + C.programPct + '<small>%</small></span><span>программы</span>' +
+    '<span>сдано <b>' + C.passed.length + '/' + n + '</b></span>' +
+    (C.elapsed != null && !done ? '<span>идёт <b>' + dur(C.elapsed) + '</b></span>' : '') +
+    '<span class="eta">' + eta + '</span></div>';
+  const compact = n > COMPACT_FROM;
+  const segs = C.counted.map(s => {
+    const p = C.pct[s.id];
+    const k = s.status === 'passed' ? 's-done' : s.status === 'failed' ? 's-fail' : ACTIVE.includes(s.status) ? 's-now' : 's-pend';
+    const fill = k === 's-now' ? '<i class="stripes" style="width:' + Math.max(p, 3) + '%"></i>' : '<i></i>';
+    const t = compact
+      ? (s.status === 'passed' ? '✓' : ACTIVE.includes(s.status) ? p + '%' : s.status === 'failed' ? '✗' : '·')
+      : (s.status === 'passed' ? 'сдан' : ACTIVE.includes(s.status) ? p + '%' : s.status === 'failed' ? 'провален' : 'впереди');
+    return '<div class="' + k + '" title="' + esc(s.id + ' · ' + s.title) + '"><div class="seg">' + fill + '</div><span class="s-name">' +
+      esc(compact ? s.id : s.id + ' · ' + s.title) + '</span><span class="s-time">' + t + '</span></div>';
+  }).join('');
+  return '<section class="hero ' + cls + '"><div><div class="state">' + state + '</div><h2>' + title + '</h2>' +
+    (lead ? '<p class="lead">' + lead + '</p>' : '') + (hint ? '<div class="hint">' + esc(hint) + '</div>' : '') + '</div>' +
+    stats + '<div class="track' + (compact ? ' compact' : '') + '" style="grid-template-columns:repeat(' + Math.max(n, 1) + ',minmax(0,1fr))">' + segs + '</div>' +
+    nextHtml(P, C) + '</section>';
+}
+
+// «Дальше»: следующий этап и вопросы владельцу, без ответа на которые оркестратор его не запустит
+function nextHtml(P, C) {
+  if (C.failed) return '';
+  const upcoming = C.pending[0];  // текущий этап в pending не входит: это всегда следующий
+  if (!upcoming) return C.current ? '<div class="next">Дальше: <b>отчёт программы</b> — это последний этап.</div>' : '';
+  const blocking = (P.questions || []).filter(q => q.answer == null && (q.stage == null || q.stage === upcoming.id));
+  const ask = blocking.length ? ' — до него нужен ответ: <b>' + blocking.map(q => esc(q.id)).join(', ') + '</b>' : ' — вопросов к тебе нет';
+  return '<div class="next">Дальше: <b>' + esc(upcoming.id + ' · ' + upcoming.title) + '</b>' + ask + '</div>';
+}
+
+// качество сданного этапа из вердикта program.py: тесты, допущения за владельца, что осталось после ревью
+function quality(v, s) {
+  const pills = [];
+  if (v.tests) pills.push('<span class="pill ' + (v.tests.failed ? 'p-bad">тесты упали: ' + v.tests.failed : 'p-done">тесты ' + v.tests.passed) + '</span>');
+  const a = (v.assumptions || []).length, c = (v.concerns || []).length + (v.left || []).length;
+  if (a) pills.push('<span class="pill p-mut">' + plural(a, 'допущение', 'допущения', 'допущений') + '</span>');
+  if (c) pills.push('<span class="pill p-mut">' + plural(c, 'замечание', 'замечания', 'замечаний') + '</span>');
+  const f = (v.flaky || []).length;
+  if (f) pills.push('<span class="pill p-now" title="' + esc(v.flaky.join('\n')) + '">нестабильные тесты: ' + f + '</span>');
+  if (v.partial) pills.push('<span class="pill p-now">отложено ' + (v.deferred || []).length + ' — будет продолжение</span>');
+  // D26: остаток сданного этапа разбирается до следующего; та же сумма, что leftovers в program.py
+  const reasons = v.reasons || [];
+  const rest = (v.verdict === 'failed' ? reasons.length : reasons.filter(r => r.startsWith('расхождение слепой приёмки')).length) +
+    (v.left || []).length + (v.concerns || []).length + (v.deferred || []).length + (v.placeholders || []).length +
+    (v.flaky || []).length;
+  if (s && rest) pills.push(s.leftoversTriaged
+    ? '<span class="pill p-mut" title="' + esc(s.leftoversTriaged.note || '') + '">остаток разобран</span>'
+    : '<span class="pill p-now">остаток ' + rest + ' не разобран</span>');
+  if (v.verdict === 'failed') pills.unshift('<span class="pill p-bad">принят как есть</span>');
+  return pills.length ? '<span class="q">' + pills.join('') + '</span>' : '';
+}
+
+function stagesHtml(P, C) {
+  const rows = C.stages.filter(s => s.status !== 'skipped').map(s => {
+    const p = C.pct[s.id];
+    const ask = s === C.current && C.waiting;
+    const f = s.status === 'passed' ? 'f-done' : s.status === 'failed' ? 'f-bad' : ask ? 'f-ask' : ACTIVE.includes(s.status) ? 'f-now' : 'f-wait';
+    const chip = s.status === 'passed' ? 'сдан' : s.status === 'failed' ? 'провален' : ask ? 'ждёт тебя' : ACTIVE.includes(s.status) ? p + '%' : 'впереди';
+    const span = stageSpan(s, C.now);
+    const time = (ACTIVE.includes(s.status) || s.status === 'passed') && span != null ? dur(span) : (s.size || '');
+    const v = s.verdict || {};
+    let note = '';
+    if (s.status === 'failed') note = '<div class="tl-note bad clamp">' + ((v.reasons || []).map(esc).join('; ') || 'провален') + '</div>';
+    else if (s.status === 'passed') note = '<div class="tl-note"><span class="clamp">' + (v.deliverable === 'docs' ? '<b>Документы.</b> ' : '') +
+      esc(v.result || s.note || '') + '</span>' + quality(v, s) + '</div>';
+    else if (s.status === 'pending' && (s.dependsOn || []).length) note = '<div class="tl-note">после ' + esc(s.dependsOn.join(', ')) + '</div>';
+    const fill = f === 'f-now' ? '<span class="fill" style="width:' + p + '%"></span>' : '';
+    return '<div class="tl" title="' + esc(s.task || s.title) + '"><span class="tl-id' + (ACTIVE.includes(s.status) ? ' on' : '') + '">' + esc(s.id) + '</span>' +
+      '<div class="bar ' + f + '">' + fill + '<span class="nm">' + esc(s.title + partOf(s)) + '</span><span class="chipin">' + chip + '</span></div>' +
+      '<span class="tl-time' + (ACTIVE.includes(s.status) ? ' now' : '') + '">' + time + '</span>' + note + '</div>';
+  }).join('');
+  const split = C.stages.filter(s => s.status === 'skipped');
+  return '<section class="card"><div class="whead"><h3 class="wt">Этапы</h3><span>' + plural(C.counted.length, 'этап', 'этапа', 'этапов') +
+    (split.length ? ' · пропущено/разбито: ' + esc(split.map(s => s.id).join(', ')) : '') + '</span></div>' + rows + '</section>';
+}
+
+// вторая плашка: что происходит внутри текущего этапа — восемь фаз прогона Autopilot, как на его собственном дашборде
+function stageHeroHtml(P, C, cls) {
+  if (!C.current) return '';
+  const head = '<div class="state">Внутри этапа · ' + esc(C.current.id + ' · ' + C.current.title + partOf(C.current)) + '</div>';
+  if (!C.run) {
+    return '<section class="hero sub ' + cls + '">' + head + '<p class="lead">Сессия этапа запускается — фазы появятся, когда Autopilot начнёт прогон.</p></section>';
+  }
+  const st = {}; (C.run.stages || []).forEach(s => { st[s.id] = s; });
+  const tickets = C.run.tickets || [];
+  const td = tickets.filter(x => x.status === 'done').length;
+  const segs = (P.phases || []).map(p => {
+    const s = st[p.id] || {};
+    const a = ms(s.startedAt), b = s.finishedAt ? ms(s.finishedAt) : (s.status === 'active' ? C.now : null);
+    const time = a != null && b != null ? durShort(b - a) : s.status === 'skipped' ? 'пропуск' : '';
+    let k = 's-pend', fill = '<i></i>';
+    if (s.status === 'done') k = 's-done';
+    else if (s.status === 'skipped') k = 's-skip';
+    else if (s.status === 'active') {
+      k = 's-now';
+      const share = p.id === 'build' && tickets.length ? td / tickets.length : 0.5;
+      fill = '<i class="stripes" style="width:' + Math.max(Math.round(share * 100), 6) + '%"></i>';
+    }
+    return '<div class="' + k + '" title="' + esc(p.name + (time ? ' · ' + time : '')) + '"><div class="seg">' + fill + '</div>' +
+      '<span class="s-name"><span class="full">' + esc(p.name) + '</span><span class="short">' + esc(SHORT_PHASE[p.id] || p.name) + '</span></span>' +
+      '<span class="s-time">' + (time || '&nbsp;') + '</span></div>';
+  }).join('');
+  const r = C.run.requirements || {};
+  const active = activePhase(C.run);
+  const stats = '<div class="stats"><span class="pct">' + C.pct[C.current.id] + '<small>%</small></span><span>этапа</span>' +
+    (active ? '<span>фаза <b>' + esc(phaseName(P, active.id)) + '</b></span>' : '') +
+    (tickets.length ? '<span>тикеты <b>' + td + '/' + tickets.length + '</b></span>' : '') +
+    (C.run.tests ? '<span>тесты <b>' + C.run.tests.passed + '</b>' + (C.run.tests.failed ? ', упало <b>' + C.run.tests.failed + '</b>' : '') + '</span>' : '') +
+    (r.total ? '<span>требования <b>' + (r.done || 0) + '/' + r.total + '</b></span>' : '') +
+    '<span class="eta"><a href="dashboard.html" target="_blank" rel="noopener">дашборд прогона ↗</a></span></div>';
+  const stack = tickets.length ? '<div class="tickets" title="тикеты этапа">' + tickets.map(x => '<i class="' +
+    (x.status === 'done' ? 't-done' : x.status === 'failed' ? 't-bad' : ['in-progress', 'review', 'repair'].includes(x.status) ? 't-now' : '') +
+    '" title="' + esc(x.id + ' · ' + (x.title || x.status)) + '"></i>').join('') + '</div>' : '';
+  return '<section class="hero sub ' + cls + '">' + head + stats +
+    '<div class="track phases-track" style="grid-template-columns:repeat(' + Math.max((P.phases || []).length, 1) + ',minmax(0,1fr))">' + segs + '</div>' +
+    stack + '</section>';
+}
+
+function decisionsHtml(P) {
+  const qs = P.questions || [];
+  const made = qs.filter(q => q.answer != null);
+  const open = qs.filter(q => q.answer == null);
+  const openHtml = open.map(q => '<div class="dec"><span class="pill p-now">ждёт ответа</span> <span class="id">' + esc(q.id) + (q.stage ? ' · до ' + esc(q.stage) : '') + '</span>' +
+    esc(q.question) + '<b>Рекомендация: ' + esc(q.recommended) + '</b></div>').join('');
+  const madeHtml = made.map(q => '<div class="dec"><span class="id">' + esc(q.id) + '</span>' + esc(q.question) +
+    '<b>' + (q.by === 'assumption' ? '<span class="pill p-mut">допущение</span> ' : q.by === 'auto' ? '<span class="pill p-mut">автоответ</span> ' : '') + esc(q.answer) + '</b></div>').join('');
+  const tasks = (P.ownerTasks || []).filter(t => !t.done);
+  const tasksHtml = tasks.map(t => '<div class="dec"><span class="pill p-now">для тебя</span> <span class="id">' + esc(t.id) + (t.stage ? ' · ' + esc(t.stage) : '') + '</span>' + esc(t.text) + '</div>').join('');
+  return '<section class="card"><div class="whead"><h3 class="wt">Задачи, вопросы и решения</h3><span>' + (tasks.length ? tasks.length + ' для тебя · ' : '') + (open.length ? open.length + ' ждут ответа · ' : '') + made.length + ' принято</span></div>' +
+    tasksHtml +
+    (openHtml || (tasks.length ? '' : '<p class="empty">Открытых вопросов нет — отвечать ничего не нужно.</p>')) +
+    (made.length ? '<details' + (decisionsOpen ? ' open' : '') + ' id="made"><summary>Принятые решения (' + made.length + ')</summary>' + madeHtml + '</details>' : '') + '</section>';
+}
+
+function render() {
+  const P = window.PROGRAM;
+  if (!P) return;
+  const C = compute(P, window.STATE);
+  document.title = shortName(P.goal) + ' — ' + C.programPct + '%';
+  const head = '<header><div class="head"><h1>' + esc(shortName(P.goal)) + '</h1>' +
+    '<span class="chip">' + plural(C.counted.length, 'этап', 'этапа', 'этапов') + '</span><span class="chip">' + esc(P.mode) + '</span>' +
+    '<span class="when">обновлено ' + ago(P.updatedAt) + '</span>' +
+    (lastGood && Date.now() - lastGood > LOST_AFTER_MS ? '<span class="lost" title="Файлы программы не отвечают — повторяю каждые 5 секунд">нет связи уже ' + (Date.now() - lastGood < 60000 ? Math.round((Date.now() - lastGood) / 1000) + ' с' : Math.round((Date.now() - lastGood) / 60000) + ' мин') + '</span>' : '') +
+    '<button class="iconbtn" id="refresh" title="Обновить сейчас" aria-label="Обновить сейчас"><svg class="ic" viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button></div>' +
+    '<div class="goal" title="' + esc(P.goal) + '">' + esc(P.goal) + (P.plan ? ' · план ' + esc(P.plan) : '') + '</div></header>';
+  $app.innerHTML = head + heroHtml(P, C) + stageHeroHtml(P, C, heroClass(P, C)) +
+    '<div class="cols"><div class="col">' + stagesHtml(P, C) + '</div><div class="col">' + decisionsHtml(P) + '</div></div>' +
+    '<div class="foot">Обновляется сама каждые 5 секунд · вопросы — в чате оркестратора</div>';
+  document.getElementById('refresh').onclick = e => { e.currentTarget.classList.add('busy'); pull(() => refresh(true)); };
+  const made = document.getElementById('made');
+  if (made) made.addEventListener('toggle', () => { decisionsOpen = made.open; });
+}
+
+// подгрузка файла отдельным тегом: работает и с локального сервера, и из file://.
+// Ответ ждём не дольше LOAD_TIMEOUT_MS: приложение замораживает скрытую панель, запрос теряется, ни onload, ни onerror
+// не приходят — раньше на этом цепочка опроса обрывалась навсегда, а страница, перерисовываясь раз в 30 с, показывала старое.
+function load(src, done) {
+  const s = document.createElement('script');
+  let over = false;
+  const end = ok => { if (over) return; over = true; clearTimeout(timer); s.remove(); done(ok); };
+  const timer = setTimeout(() => end(false), LOAD_TIMEOUT_MS);
+  s.onload = () => end(true);
+  s.onerror = () => end(false);
+  s.src = src + '?t=' + Date.now();
+  document.head.appendChild(s);
+}
+
+// перерисовка только когда данные изменились (или раз в 30 с — для «идёт» и «назад»): без мигания и прыжков прокрутки
+let shown = '';
+function reloadIfOutdated() {
+  const P = window.PROGRAM;
+  if (!P || !P.pageBuild || BUILD.startsWith('__') || P.pageBuild === BUILD) return;
+  try {  // не чаще раза в 30 с: если файл страницы не обновился, перезагрузка не должна зациклиться
+    const last = Number(sessionStorage.getItem('pageReloadAt') || 0);
+    if (Date.now() - last < 30000) return;
+    sessionStorage.setItem('pageReloadAt', String(Date.now()));
+  } catch (e) { return; }
+  location.reload();
+}
+
+function refresh(force) {
+  reloadIfOutdated();
+  const sig = JSON.stringify([window.PROGRAM, window.STATE, lastGood && Date.now() - lastGood > LOST_AFTER_MS]);
+  if (!force && sig === shown) return;
+  shown = sig;
+  render();
+}
+
+// опрос не зависит от того, закончился ли прошлый: по таймеру каждые POLL_MS, сразу при возвращении панели на экран
+// (видимость, фокус, возврат из заморозки, сеть) и по кнопке. Зависший запрос не мешает новому — его гасит таймаут.
+let lastGood = 0, pulling = false, pullAt = 0;
+function pull(done) {
+  if (pulling && Date.now() - pullAt < 2 * LOAD_TIMEOUT_MS + 1000) { if (done) done(); return; }
+  pulling = true; pullAt = Date.now();
+  load('program.js', okProgram => load('state.js', () => {
+    pulling = false;
+    if (okProgram) lastGood = Date.now();   // state.js между прогонами может не быть — это не потеря связи
+    refresh(false);
+    if (done) done();
+  }));
+}
+setInterval(() => pull(), POLL_MS);
+for (const [target, name] of [[document, 'visibilitychange'], [document, 'resume'], [window, 'focus'], [window, 'pageshow'], [window, 'online']]) {
+  target.addEventListener(name, () => { if (!document.hidden) pull(); });
+}
+
+lastGood = Date.now();
+refresh(true);
+pull();
+setInterval(() => refresh(true), 30000);
+</script>
+</body>
+</html>

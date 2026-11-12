@@ -1,0 +1,16 @@
+[project]
+name = "autopilot-kit"
+version = "0.2.0"
+description = "Roles, quality gate and app settings on top of the original Autopilot"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+dependencies = []
+
+[project.urls]
+Original = "https://github.com/nick-vels/skills"
+
+[project.optional-dependencies]
+dev = ["pytest"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

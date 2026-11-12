@@ -1,0 +1,41 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status *)",
+      "Bash(git diff *)",
+      "Bash(git log *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(python -m pytest *)",
+      "Bash(npm test *)",
+      "PowerShell(git status *)",
+      "PowerShell(git diff *)",
+      "PowerShell(git log *)",
+      "PowerShell(git add *)",
+      "PowerShell(git commit *)",
+      "PowerShell(python -m pytest *)",
+      "PowerShell(npm test *)"
+    ],
+    "deny": [
+      "Bash(git push --force *)",
+      "Bash(rm -rf /*)",
+      "PowerShell(git push --force *)",
+      "Read(./.env)",
+      "Read(./.env.*)",
+      "Read(./secrets/**)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python \"$HOME/.autopilot-kit/bin/gate.py\" --hook claude-stop",
+            "timeout": 1200
+          }
+        ]
+      }
+    ]
+  }
+}

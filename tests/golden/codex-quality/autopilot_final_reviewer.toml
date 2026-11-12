@@ -1,0 +1,5 @@
+name = "autopilot_final_reviewer"
+description = "Роль final-reviewer в Autopilot. Файл создан autopilot-kit."
+model = "gpt-6-astra"
+model_reasoning_effort = "max"
+developer_instructions = "Ты роль final-reviewer Autopilot. Следуй заданию оркестратора. Не меняй свою роль."

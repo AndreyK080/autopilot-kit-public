@@ -1,0 +1,8 @@
+# служебные файлы autopilot-kit и его резервные копии (.bak-<UTC>)
+.autopilot-kit/last_host
+.autopilot-kit/gate_state.json
+.autopilot-kit/gate_log.jsonl
+.autopilot-kit/flaky.json
+*.bak-20*
+# конфигурация панели приложения машинно-зависима (абсолютный путь program.py) — её создаёт `program.py page --launch`
+.claude/launch.json

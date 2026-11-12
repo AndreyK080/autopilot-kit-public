@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Пульт Autopilot</title>
+<!-- autopilot-kit: пульт всех программ (D43). Читает /api/state каждые 15 секунд; цвета — как у дашборда программы.
+     Значения из файлов проектов выводятся только через textContent. -->
+<style>
+  :root{
+    --bg:#F2F2F4; --card:#fff; --line:rgba(0,0,0,.07); --line2:rgba(0,0,0,.11);
+    --tx:#111113; --mut:#6B6B70;
+    --hero:#2F45E0; --done:#17864A; --done-soft:#E2F3E9; --done-tx:#126B3B;
+    --now:#FF6B35; --now-soft:#FFE9DF; --now-tx:#AD3D0E;
+    --bad:#DC2626; --bad-soft:#FDE6E6; --bad-tx:#B01C1C; --idle:#D4D4D9;
+    --sh:0 1px 2px rgba(0,0,0,.04),0 8px 20px -16px rgba(20,24,40,.2);
+  }
+  @media (prefers-color-scheme:dark){
+    :root:not([data-theme="light"]){
+      --bg:#17181B; --card:#222327; --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+      --tx:#F2F2F3; --mut:#A3A3AA;
+      --hero:#5C70F0; --done:#1E9A56; --done-soft:#1C3527; --done-tx:#5BD68C;
+      --now-soft:#43271C; --now-tx:#FF8A5C; --bad:#E5383B; --bad-soft:#47201F; --bad-tx:#FF8B8B; --idle:#4A4B51;
+      --sh:0 1px 0 rgba(255,255,255,.03) inset,0 8px 20px -16px rgba(0,0,0,.75);
+      color-scheme:dark;
+    }
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--tx);
+    font:14px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",system-ui,sans-serif;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+  a{color:inherit}
+  .wrap{max-width:1100px;margin:0 auto;padding:14px 16px 24px;display:flex;flex-direction:column;gap:12px;min-width:0}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--sh);padding:14px 16px;min-width:0}
+  .card h2{font-size:14.5px;font-weight:650;margin:0}
+  .note{font-size:12.5px;color:var(--mut);margin:2px 0 10px}
+  .mut{color:var(--mut)}
+  .head{display:flex;align-items:center;gap:6px 10px;flex-wrap:wrap}
+  .head h1{margin:0;font-size:18px;font-weight:700;letter-spacing:-.02em}
+  .when{font-size:12px;color:var(--mut);margin-left:auto}
+  .lost{color:var(--bad-tx);font-weight:600}
+  .lead{margin:0;font-size:15px;font-weight:550;overflow-wrap:anywhere}
+  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,10.5rem),1fr));gap:12px}
+  .tile{padding:12px 16px}
+  .tile span{font-size:12.5px;color:var(--mut)}
+  .tile b{display:block;font-size:26px;line-height:1.2;font-weight:700;letter-spacing:-.02em}
+  .tile b small{font-size:14px;font-weight:600;color:var(--mut)}
+
+  .alert{display:grid;grid-template-columns:7.5rem minmax(0,1fr) minmax(0,1fr);gap:4px 14px;padding:9px 0;border-top:1px solid var(--line)}
+  .alert:first-of-type{border-top:0}
+  .level{font-size:12.5px;font-weight:650;white-space:nowrap}
+  .level::before{margin-right:.35em}
+  .l0{color:var(--bad-tx)}.l0::before{content:"●"}
+  .l1{color:var(--now-tx)}.l1::before{content:"▲"}
+  .l2{color:var(--mut)}.l2::before{content:"○"}
+  .alert .where{display:block;font-weight:600}
+  .alert .action{color:var(--mut)}
+  .calm{color:var(--done-tx);font-weight:600}
+
+  .prog{display:grid;grid-template-columns:minmax(9rem,13rem) minmax(0,1fr);gap:6px 14px;padding:10px 0;border-top:1px solid var(--line)}
+  .prog:first-of-type{border-top:0}
+  .pname{font-weight:650;overflow-wrap:anywhere}
+  .pmeta{font-size:12px;color:var(--mut)}
+  .chips{display:flex;flex-wrap:wrap;gap:4px;align-content:flex-start}
+  .chip{display:inline-flex;align-items:center;gap:.3em;height:22px;padding:0 7px;border-radius:7px;border:1px solid var(--line2);font-size:12px}
+  .chip.passed{background:var(--done-soft);border-color:transparent;color:var(--done-tx)}
+  .chip.passed::before{content:"✓"}
+  .chip.running,.chip.waiting{background:var(--hero);border-color:var(--hero);color:#fff;font-weight:600}
+  .chip.running::before{content:"▶";font-size:.7em}
+  .chip.waiting::before{content:"?"}
+  .chip.stuck{background:var(--now-soft);border-color:var(--now-tx);color:var(--now-tx);font-weight:600}
+  .chip.stuck::before{content:"■";font-size:.7em}
+  .chip.failed{background:var(--bad-soft);border-color:var(--bad);color:var(--bad-tx);font-weight:600}
+  .chip.failed::before{content:"✕"}
+  .chip.pending{border-style:dashed;color:var(--mut)}
+  .chip.skipped{border-color:transparent;color:var(--mut);text-decoration:line-through}
+  .legend{display:flex;flex-wrap:wrap;gap:6px 10px;margin-bottom:8px;font-size:12px;color:var(--mut);align-items:center}
+  .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}
+  .perr{color:var(--bad-tx);font-size:12.5px}
+
+  .pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr));gap:12px}
+  .group{font-size:12px;color:var(--mut);margin:8px 0 2px;font-weight:600}
+  .bar{display:grid;grid-template-columns:3.2rem minmax(0,1fr) 4.6rem;gap:8px;align-items:center;min-height:21px;font-size:12px;border-radius:5px}
+  .bar:hover{background:var(--line)}
+  .val{text-align:right;white-space:nowrap}
+  .track{display:flex;gap:2px;height:10px}
+  .seg{height:100%;border-radius:2px;min-width:2px}
+  .s-pass{background:var(--hero)}.s-block{background:var(--bad)}.s-release{background:var(--idle)}
+
+  .ver{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 8px;margin:8px 0}
+  .ver b{font-size:24px;font-weight:700;letter-spacing:-.02em}
+  .facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,9.5rem),1fr));gap:8px 14px;margin:10px 0}
+  .facts span{display:block;font-size:12px;color:var(--mut)}
+  .facts b{font-weight:600}
+  .log{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12.5px;margin:6px 0 0}
+  .row{padding:7px 0;border-top:1px solid var(--line)}
+  .row:first-of-type{border-top:0}
+  .row b{font-weight:600}
+  @media (max-width:640px){.alert{grid-template-columns:minmax(0,1fr)}.prog{grid-template-columns:minmax(0,1fr)}.when{margin-left:0;width:100%}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="head">
+    <h1>Пульт Autopilot</h1>
+    <span class="when" id="when">загрузка…</span>
+  </header>
+  <p class="lead" id="lead">Собираю состояние программ…</p>
+  <section class="tiles" id="tiles" aria-label="Главные цифры"></section>
+
+  <section class="card">
+    <h2>Что требует внимания</h2>
+    <p class="note">Сверху то, что мешает работе сейчас. Лимиты подписки здесь не видны: приложение показывает их только чату.</p>
+    <div id="alerts"></div>
+  </section>
+
+  <section class="card">
+    <h2>Программы</h2>
+    <p class="note">Каждая плашка — этап. Наведите, чтобы увидеть название и время.</p>
+    <div class="legend">
+      <span class="chip passed">сдан</span><span class="chip running">идёт</span><span class="chip waiting">ждёт вас</span>
+      <span class="chip stuck">стоит, нет в реестре</span><span class="chip failed">провален</span>
+      <span class="chip pending">впереди</span><span class="chip skipped">пропущен</span>
+    </div>
+    <div id="programs"></div>
+  </section>
+
+  <section class="pair">
+    <div class="card">
+      <h2>Гейт качества по этапам</h2>
+      <p class="note">Журнал ведётся с 27.10, ранние этапы в нём не видны. Справа — всего прогонов.</p>
+      <div class="legend">
+        <span><i class="sw s-pass"></i>прошёл</span><span><i class="sw s-block"></i>заблокировал</span>
+        <span><i class="sw s-release"></i>отпустил после повторного провала</span>
+      </div>
+      <div id="gate"></div>
+    </div>
+    <div class="card">
+      <h2>Длительность сданных этапов</h2>
+      <p class="note">Календарное время от старта до сдачи, включая ожидание и паузы.</p>
+      <div id="durations"></div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Оригинальный Autopilot на GitHub</h2>
+    <div id="core"></div>
+  </section>
+
+  <section class="pair">
+    <div class="card">
+      <h2>Автоматика</h2>
+      <p class="note">Задачи приложения по расписанию.</p>
+      <div id="automation"></div>
+    </div>
+    <div class="card">
+      <h2>Открытые задачи владельца</h2>
+      <p class="note">Программы их ждут, сами они не закроются.</p>
+      <div id="tasks"></div>
+    </div>
+  </section>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const el = (tag, cls, text) => {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text !== undefined && text !== null) node.textContent = text;
+  return node;
+};
+const LEVELS = ['Срочно', 'Важно', 'К сведению'];
+const hm = (m) => {
+  const h = Math.floor(m / 60);
+  return (h ? h + ' ч ' : '') + String(m % 60).padStart(h ? 2 : 1, '0') + ' м';
+};
+
+function chipClass(stage, program) {
+  if (['running', 'waiting'].includes(stage.status) && !program.registered) return 'stuck';
+  return stage.status;
+}
+
+function drawLead(s) {
+  const urgent = s.alerts.filter((a) => a.level === 0).length;
+  const important = s.alerts.filter((a) => a.level === 1).length;
+  const lead = $('lead');
+  if (urgent) lead.textContent = 'Срочных пунктов: ' + urgent + ', важных: ' + important + '. Начните с верхней строки.';
+  else if (important) lead.textContent = 'Срочного нет, важных пунктов: ' + important + '.';
+  else lead.textContent = 'Всё идёт штатно, вмешиваться не нужно.';
+}
+
+function drawTiles(s) {
+  const reg = s.programs.filter((p) => p.registered);
+  const passed = s.programs.reduce((n, p) => n + p.passed, 0);
+  const total = s.programs.reduce((n, p) => n + p.total, 0);
+  const tasks = s.programs.reduce((n, p) => n + p.tasks.length, 0);
+  const tile = (label, value, tail) => {
+    const box = el('div', 'card tile');
+    box.append(el('span', '', label));
+    const big = el('b', '', value);
+    if (tail) big.append(el('small', '', ' ' + tail));
+    box.append(big);
+    return box;
+  };
+  $('tiles').replaceChildren(
+    tile('Этапов сейчас идёт', reg.filter((p) => p.current).length),
+    tile('Сдано этапов', passed, 'из ' + total),
+    tile('Программ вне реестра', s.programs.filter((p) => !p.registered).length),
+    tile('Задач владельца', tasks),
+  );
+}
+
+function drawAlerts(s) {
+  if (!s.alerts.length) {
+    $('alerts').replaceChildren(el('div', 'calm', 'Сейчас ничего не требует внимания.'));
+    return;
+  }
+  $('alerts').replaceChildren(...s.alerts.map((a) => {
+    const row = el('div', 'alert');
+    row.append(el('span', 'level l' + a.level, LEVELS[a.level]));
+    const what = el('div');
+    what.append(el('span', 'where', a.where), el('span', '', a.what));
+    row.append(what, el('div', 'action', a.action));
+    return row;
+  }));
+}
+
+function drawPrograms(s) {
+  $('programs').replaceChildren(...s.programs.map((p) => {
+    const row = el('div', 'prog');
+    const head = el('div');
+    const name = el(p.url ? 'a' : 'div', 'pname', p.name);
+    if (p.url) { name.href = p.url; name.target = '_blank'; name.rel = 'noopener'; name.title = 'Дашборд этой программы'; }
+    head.append(name);
+    if (p.error) {
+      head.append(el('div', 'perr', p.error));
+    } else {
+      head.append(el('div', 'pmeta', p.passed + ' из ' + p.total + ' · активность ' + p.lastActivity));
+      if (!p.registered) head.append(el('div', 'pmeta', 'нет в реестре'));
+    }
+    const chips = el('div', 'chips');
+    p.stages.forEach((st) => {
+      const chip = el('span', 'chip ' + chipClass(st, p), st.id);
+      const time = st.minutes !== null ? hm(st.minutes) : st.elapsedText ? 'идёт ' + st.elapsedText + ', включая паузы' : '';
+      chip.title = [st.id + ' · ' + st.statusText, st.title, time].filter(Boolean).join('\n');
+      chips.append(chip);
+    });
+    row.append(head, chips);
+    return row;
+  }));
+}
+
+function drawBars(target, rows, segments, value, details) {
+  const max = Math.max(1, ...rows.map((r) => segments.reduce((n, seg) => n + seg.v(r), 0)));
+  const nodes = [];
+  let group = null;
+  rows.forEach((r) => {
+    if (r.program !== group) { group = r.program; nodes.push(el('div', 'group', group)); }
+    const row = el('div', 'bar');
+    row.title = details(r);
+    const track = el('div', 'track');
+    segments.forEach((seg) => {
+      const x = seg.v(r);
+      if (!x) return;
+      const part = el('div', 'seg ' + seg.cls);
+      part.style.width = (x / max * 100) + '%';
+      track.append(part);
+    });
+    row.append(el('span', '', r.id), track, el('span', 'val', value(r)));
+    nodes.push(row);
+  });
+  target.replaceChildren(...(nodes.length ? nodes : [el('div', 'mut', 'Пока нет данных.')]));
+}
+
+function drawCharts(s) {
+  const stages = s.programs.flatMap((p) => p.stages.map((st) => ({...st, program: p.name})));
+  drawBars($('gate'), stages.filter((st) => st.gateRuns > 0), [
+    {cls: 's-pass', v: (r) => r.gateRuns - r.blocks - r.releases},
+    {cls: 's-block', v: (r) => r.blocks},
+    {cls: 's-release', v: (r) => r.releases},
+  ], (r) => String(r.gateRuns), (r) => [r.program + ' · ' + r.id + ' · ' + r.statusText, 'Прогонов: ' + r.gateRuns,
+    'Блоков: ' + r.blocks, 'Отпусков: ' + r.releases, 'Нестабильных тестов: ' + r.flaky].join('\n'));
+  drawBars($('durations'), stages.filter((st) => st.status === 'passed' && st.minutes), [
+    {cls: 's-pass', v: (r) => r.minutes},
+  ], (r) => hm(r.minutes), (r) => [r.program + ' · ' + r.id, r.title, 'Ремонтов: ' + r.repairs].join('\n'));
+}
+
+function fact(label, value) {
+  const box = el('div');
+  box.append(el('span', '', label), el('b', '', value));
+  return box;
+}
+
+function drawCore(s) {
+  const c = s.core;
+  if (!c) {
+    $('core').replaceChildren(el('p', 'note', s.slowPending ? 'Проверяю GitHub и doctor…' : 'Данные о версии получить не удалось.'));
+    return;
+  }
+  const ver = el('div', 'ver');
+  ver.append(el('b', '', c.installed || '—'), el('span', 'mut', c.installedCommit));
+  if (c.available) ver.append(el('span', 'mut', '→'), el('b', '', c.latest), el('span', 'mut', c.latestCommit));
+  const seams = c.seamsOk === null || c.seamsOk === undefined ? 'не проверялись'
+    : c.seamsFail ? 'красных: ' + c.seamsFail : 'зелёных: ' + c.seamsOk;
+  const facts = el('div', 'facts');
+  facts.append(
+    fact('Состояние', !c.reachable ? 'GitHub не ответил' : c.available ? 'есть новая версия' : 'версия актуальна'),
+    fact('Швы кандидата', c.available ? seams : '—'),
+    fact('kit doctor', s.doctor ? 'FAIL ' + s.doctor.fail.length + ', WARN ' + s.doctor.warn : '—'),
+    fact('Коммитов kit не на GitHub', s.git && s.git.unpushed !== undefined && s.git.unpushed !== null ? s.git.unpushed : '—'),
+    fact('Последний коммит kit', s.git && s.git.lastCommit ? s.git.lastCommit : '—'),
+    fact('Проверено', s.slowCheckedAt),
+  );
+  const nodes = [ver, facts];
+  if (c.available && c.log) nodes.push(el('p', 'log', c.log));
+  if (c.available && c.files.length) nodes.push(el('p', 'log mut', 'Файлы: ' + c.files.join(', ')));
+  $('core').replaceChildren(...nodes);
+}
+
+function drawAutomation(s) {
+  $('automation').replaceChildren(...s.automation.map((t) => {
+    const row = el('div', 'row');
+    row.append(el('b', '', t.name));
+    const parts = [t.present ? 'задача поставлена' : 'задачи нет на этой машине'];
+    if (t.last && t.last !== '—') parts.push((t.note || 'последний запуск') + ' ' + t.last + ' (' + t.ago + ' назад)');
+    row.append(el('div', 'pmeta', parts.join(' · ')));
+    return row;
+  }));
+}
+
+function drawTasks(s) {
+  const rows = s.programs.flatMap((p) => p.tasks.map((t) => ({...t, program: p.name})));
+  $('tasks').replaceChildren(...(rows.length ? rows.map((t) => {
+    const row = el('div', 'row');
+    row.append(el('b', '', t.program + ' · ' + t.id), el('div', '', t.text));
+    return row;
+  }) : [el('div', 'calm', 'Открытых задач нет.')]));
+}
+
+let shown = '';
+async function refresh() {
+  try {
+    const reply = await fetch('/api/state', {cache: 'no-store'});
+    if (!reply.ok) throw new Error(String(reply.status));
+    const s = await reply.json();
+    const {generatedAt, ...rest} = s;
+    const when = $('when');
+    when.className = 'when';
+    when.textContent = 'обновлено ' + new Date(generatedAt).toLocaleTimeString('ru-RU');
+    const text = JSON.stringify(rest);
+    if (text === shown) return;  // без перерисовки: не сбивать выделение и подсказку
+    shown = text;
+    drawLead(s); drawTiles(s); drawAlerts(s); drawPrograms(s); drawCharts(s); drawCore(s); drawAutomation(s); drawTasks(s);
+  } catch (error) {
+    const when = $('when');
+    when.className = 'when lost';
+    when.textContent = 'нет связи с сервером пульта: данные могли устареть';
+  }
+}
+refresh();
+setInterval(refresh, 15000);
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+{
+  "autopilot-gate": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "python \"<~>/.autopilot-kit/bin/gate.py\" --hook agy-stop",
+        "timeout": 1200
+      }
+    ]
+  }
+}

@@ -1,0 +1,5 @@
+name = "autopilot_executor"
+description = "Роль executor в Autopilot. Файл создан autopilot-kit."
+model = "gpt-6.1-sol"
+model_reasoning_effort = "medium"
+developer_instructions = "Ты роль executor Autopilot. Следуй заданию оркестратора. Не меняй свою роль."
