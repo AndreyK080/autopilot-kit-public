@@ -1,6 +1,6 @@
 # Claude Code, Codex и Claude Desktop Gate: соответствие возможностей
 
-> Оригинальный Autopilot — [nick-vels/skills](https://github.com/nick-vels/skills) (MIT, © Nick Vels): kit его не меняет и не содержит. Отличия — [DIFF_FROM_UPSTREAM.md](DIFF_FROM_UPSTREAM.md), приводы — [DRIVES.md](DRIVES.md).
+> Оригинальный Autopilot — [nick-vels/skills](https://github.com/nick-vels/skills) (MIT, © Nick Vels): kit его не меняет; копия лежит в `vendor/autopilot`. Отличия — [DIFF_FROM_UPSTREAM.md](DIFF_FROM_UPSTREAM.md), приводы — [DRIVES.md](DRIVES.md).
 
 Решение D24: одно ядро (`program.py`, `program.json`, план, дашборд, решения по лимитам, проверка сдачи), три привода (D48 добавил Claude Desktop Gate — таблица ниже). Каждая новая
 возможность kit добавляется сюда строкой сразу для обоих приложений. Статус: **=** — одинаково; **≈** — то же для владельца, другой

@@ -1,6 +1,6 @@
 # Спайки осуществимости
 
-> Оригинальный Autopilot — [nick-vels/skills](https://github.com/nick-vels/skills) (MIT, © Nick Vels): kit его не меняет и не содержит. Отличия — [DIFF_FROM_UPSTREAM.md](DIFF_FROM_UPSTREAM.md), приводы — [DRIVES.md](DRIVES.md).
+> Оригинальный Autopilot — [nick-vels/skills](https://github.com/nick-vels/skills) (MIT, © Nick Vels): kit его не меняет; копия лежит в `vendor/autopilot`. Отличия — [DIFF_FROM_UPSTREAM.md](DIFF_FROM_UPSTREAM.md), приводы — [DRIVES.md](DRIVES.md).
 
 | Спайк | Что делали | Факт | Вывод |
 |---|---|---|---|

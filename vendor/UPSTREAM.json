@@ -1,0 +1,28 @@
+{
+  "commit": "5ed4b7989bd9c4ba803b0f3e6d69064ffc0826bb",
+  "source": "https://github.com/nick-vels/skills.git",
+  "files": {
+    "SKILL.md": "ff3a8ce432520acc7866f71a5129d50b288ba03ebd4cbcbd35721ffc9cfe9455",
+    "phases/0-instruments.md": "865fbf12ef17b6dfa546e7edfabd5684d93499cfc966dd64f54911965e73e259",
+    "phases/0-memory.md": "66f131d4b2dc91216bd49ea2333a6b3a7958428a77c99c4f877ff5d03bfc77a4",
+    "phases/0-modes.md": "138581f46d39740c0b627b7fbf6d7d5053b3163fb377ba0bbf1d43525cede050",
+    "phases/0-preflight.md": "264f459a896dc2b8aaea86c417eaa9cbc1f68cac6e40a4f9fe259eab6678618a",
+    "phases/0-resume.md": "4a1efe74d32e28df348bda14035f0b195c2a8f8dccb954b35bf68d178c0ee3f8",
+    "phases/1-manifest.md": "8f9296d27817341968ebec6772fd747aa20037fe4b36b11a3438f5786f610375",
+    "phases/2-adversarial.md": "c407bc783cac0a1bc81f528ccd45c146a19edbb9899df3c9b30b15145f73235f",
+    "phases/2-briefing.md": "4384a39297a49964c46bf164fa3d522007c5a56b83d747b34ed0f01a62fad398",
+    "phases/3-spec.md": "1114100f0c370129048fc9284b934bd774cce2d595e873d1c3f834aef0c62365",
+    "phases/4-plan.md": "92fa7ab1e87e5c9fce5b62e9686f3a7c7c158b8f3dc683a11f5df719216eec3c",
+    "phases/5-repair.md": "71ad902d7ba8573dc2b9a2e1ff44baf89f1160b88eb3bbbb5537c747436d0798",
+    "phases/5-subagents.md": "e7085fea2927c9e8f2b4fd268b2e14d6d5757ce32cb7dc19e2f1c9b4d27057b3",
+    "phases/6-review.md": "3f6184ed3fe1d741436950ddedbc8c8c7fba84bbc1aff2462a624de00bb93a33",
+    "phases/8-final.md": "ea19d04b9ac9e65c9a004a4ccbc578e5605955825e8a3d365253052af0284a51",
+    "phases/9-memory.md": "2844d9bed331f8f17a66d5d8089836b6e541024351986218f44cf523d17f15c7",
+    "phases/dashboard-template.html": "5450b7c2741eeb1be8731aea7e11054d820ce220bf983195998bda768f6906e5",
+    "phases/rationalizations.md": "997a77c772cb72b7960264b942b4f415f3091319d5143adb8db6f22d4d7fe772",
+    "prompts/executor.md": "c02d02e842321277c62fa7be36369a4c85adba4c7b95d097d1b16a8dad9f83b3",
+    "prompts/review.md": "499c81073c91414218c73d23b392478a9fcda56af1931d440da3eb335b4b176f",
+    "tools/ap.py": "c7d258acddfca43f9f67665c3e4dd73fc5374c6e1d412eed4a58dd08a874ab4f"
+  },
+  "note": "Копия оригинального Autopilot (nick-vels/skills, MIT) без изменений. Меняется только командой kit update / kit vendor."
+}

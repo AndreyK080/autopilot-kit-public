@@ -183,3 +183,45 @@ def remove_stage_copy(target: Path | None = None) -> str | None:
         return f"оставлено (папка не от kit): {target}"
     shutil.rmtree(target)
     return f"копия для этапов удалена: {target}"
+
+
+# --- Копия оригинала внутри репозитория kit (D56) ---------------------------------------------------------------
+# Публичный репозиторий должен быть полным решением: оригинал лежит в vendor/autopilot байт в байт и ставится без сети.
+VENDOR_ROOT = Path(__file__).resolve().parent.parent / "vendor"
+VENDOR_SKILL = "autopilot"
+VENDOR_MANIFEST = "UPSTREAM.json"
+
+
+class VendorError(Exception):
+    """Копия оригинала в репозитории повреждена или не совпадает с закреплением."""
+
+
+def vendored(pin: str, root: Path | None = None) -> tuple[Path, str] | None:
+    """(папка навыка, полный коммит), если в vendor лежит копия закреплённого коммита; None — копии нет или она другого коммита.
+    Копия с изменёнными файлами — VendorError: оригинал должен лежать без изменений."""
+    root = Path(root) if root else VENDOR_ROOT
+    manifest = root / VENDOR_MANIFEST
+    if not manifest.is_file():
+        return None
+    data = json.loads(manifest.read_text(encoding="utf-8"))
+    commit = data.get("commit", "")
+    if not commit or not commit.startswith(pin.strip()):
+        return None
+    src = root / VENDOR_SKILL
+    if hash_tree(src) != data.get("files"):
+        raise VendorError(f"файлы в {src} отличаются от {VENDOR_MANIFEST}: копию оригинала правили вручную или повредили. "
+                          "Восстановите её: git checkout -- vendor или python -m kit vendor")
+    return src, commit
+
+
+def vendor_write(src: Path, commit: str, url: str = REPO_URL, root: Path | None = None) -> Path:
+    """Кладёт копию оригинала (src = клон/skills/autopilot) в vendor вместе с лицензией автора и манифестом."""
+    root = Path(root) if root else VENDOR_ROOT
+    root.mkdir(parents=True, exist_ok=True)
+    _copy_tree(src, root / VENDOR_SKILL)
+    license_text = _git("show", f"{commit}:LICENSE", cwd=Path(src).parents[1])
+    (root / "LICENSE").write_bytes((license_text.rstrip("\n") + "\n").encode("utf-8"))
+    manifest = {"commit": commit, "source": url, "files": hash_tree(root / VENDOR_SKILL),
+                "note": "Копия оригинального Autopilot (nick-vels/skills, MIT) без изменений. Меняется только командой kit update / kit vendor."}
+    (root / VENDOR_MANIFEST).write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    return root / VENDOR_SKILL

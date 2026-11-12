@@ -1,6 +1,6 @@
 # Архитектура Autopilot Kit
 
-> Оригинальный Autopilot — [nick-vels/skills](https://github.com/nick-vels/skills) (MIT, © Nick Vels): kit его не меняет и не содержит. Отличия — [DIFF_FROM_UPSTREAM.md](DIFF_FROM_UPSTREAM.md), приводы — [DRIVES.md](DRIVES.md).
+> Оригинальный Autopilot — [nick-vels/skills](https://github.com/nick-vels/skills) (MIT, © Nick Vels): kit его не меняет; копия лежит в `vendor/autopilot`. Отличия — [DIFF_FROM_UPSTREAM.md](DIFF_FROM_UPSTREAM.md), приводы — [DRIVES.md](DRIVES.md).
 
 ## Что это
 
@@ -27,7 +27,7 @@
 | Компонент | Где лежит в репозитории | Куда ставится | Назначение |
 |---|---|---|---|
 | Установщик `kit` | `kit/` (Python, только стандартная библиотека, ≥ 3.11) | запускается из репозитория: `python -m kit …` | `install`, `update`, `status`, `doctor`, `uninstall`, `project init` |
-| Оригинальный Autopilot | не хранится в репо; `upstream.lock.json` | `~/.claude/skills/autopilot`, `~/.agents/skills/autopilot` | Сам процесс разработки |
+| Оригинальный Autopilot | копия без изменений в `vendor/autopilot` (+ `vendor/LICENSE`, `vendor/UPSTREAM.json`; D56); `upstream.lock.json` | `~/.claude/skills/autopilot`, `~/.agents/skills/autopilot` | Сам процесс разработки |
 | Навык `autopilot-roles` | `skills/autopilot-roles/SKILL.md` | рядом с autopilot в обоих местах | Правила: какое приложение, какой профиль, каким типом агента и с какой моделью запускать субагентов; гейт; предупреждение, что прогон даёт документы, а не код (D16); раздел «Следующий шаг» в отчёте многоэтапного проекта (D17) |
 | Навык `autopilot-setup` | `skills/autopilot-setup/SKILL.md` | там же | Мастер: тариф, рекомендации, запись профиля |
 | Таблица моделей | `kit/data/models.json` | `~/.autopilot-kit/models.json` | Уровень → имя модели и допустимые усилия по вендорам |

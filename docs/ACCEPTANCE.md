@@ -1,6 +1,6 @@
 ﻿# Приёмка в Claude Code (T6.1, 21.10.2026)
 
-> Оригинальный Autopilot — [nick-vels/skills](https://github.com/nick-vels/skills) (MIT, © Nick Vels): kit его не меняет и не содержит. Отличия — [DIFF_FROM_UPSTREAM.md](DIFF_FROM_UPSTREAM.md), приводы — [DRIVES.md](DRIVES.md).
+> Оригинальный Autopilot — [nick-vels/skills](https://github.com/nick-vels/skills) (MIT, © Nick Vels): kit его не меняет; копия лежит в `vendor/autopilot`. Отличия — [DIFF_FROM_UPSTREAM.md](DIFF_FROM_UPSTREAM.md), приводы — [DRIVES.md](DRIVES.md).
 
 Проект: `<папка приёмки>\todo-cli`, шаблон `python-cli`. Запуск: `/autopilot-roles`, затем
 `/autopilot semi: консольный todo-менеджер на Python: add, list, done, delete, хранение в JSON-файле, тесты pytest`.

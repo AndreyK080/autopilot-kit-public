@@ -1,12 +1,13 @@
 # Эксплуатация
 
-> Оригинальный Autopilot — [nick-vels/skills](https://github.com/nick-vels/skills) (MIT, © Nick Vels): kit его не меняет и не содержит. Отличия — [DIFF_FROM_UPSTREAM.md](DIFF_FROM_UPSTREAM.md), приводы — [DRIVES.md](DRIVES.md).
+> Оригинальный Autopilot — [nick-vels/skills](https://github.com/nick-vels/skills) (MIT, © Nick Vels): kit его не меняет; копия лежит в `vendor/autopilot`. Отличия — [DIFF_FROM_UPSTREAM.md](DIFF_FROM_UPSTREAM.md), приводы — [DRIVES.md](DRIVES.md).
 
 Все команды выполняются из папки `autopilot-kit`: `python -m kit <команда>`.
 
 | Команда | Что делает |
 |---|---|
-| `install` | Ставит Autopilot по `kit/data/upstream.pin` в `~/.claude/skills/autopilot` и `~/.agents/skills/autopilot`, пишет `~/.autopilot-kit/upstream.lock.json`; делает копию `autopilot-stage` для сессий этапов; копирует навыки kit (`autopilot-roles`, `autopilot-setup`, `autopilot-init`, `autopilot-program`; прежняя версия — в `~/.autopilot-kit/backups/`); пишет `resolved.json`, `models.json`, `bin/gate.py`, `bin/program.py` и агентов `~/.claude/agents/autopilot-*.md` из текущего профиля. Повторный запуск ничего не ломает |
+| `vendor` | Кладёт в `vendor/` копию оригинала закреплённого коммита (с лицензией автора и манифестом хешей). Нужна в репозитории kit; `update` делает это сам |
+| `install` | Ставит Autopilot из `vendor/autopilot` (без сети; нет копии нужного коммита — клонирует с GitHub) по `kit/data/upstream.pin` в `~/.claude/skills/autopilot` и `~/.agents/skills/autopilot`, пишет `~/.autopilot-kit/upstream.lock.json`; делает копию `autopilot-stage` для сессий этапов; копирует навыки kit (`autopilot-roles`, `autopilot-setup`, `autopilot-init`, `autopilot-program`; прежняя версия — в `~/.autopilot-kit/backups/`); пишет `resolved.json`, `models.json`, `bin/gate.py`, `bin/program.py` и агентов `~/.claude/agents/autopilot-*.md` из текущего профиля. Повторный запуск ничего не ломает |
 | `status` | Коммит из lock, совпадение хешей в каждой цели, HEAD на GitHub, есть ли обновление. Код 1 — если что-то не совпало |
 | `update [--yes]` | Берёт HEAD с GitHub, показывает `git log` по `skills/autopilot` и список изменённых файлов, проверяет швы (красные — отказ даже с `--yes`), спрашивает `y/N`, ставит, обновляет pin и lock |
 | `check-update` | Сравнивает файлы `skills/autopilot` на GitHub с lock. Код 0 — обновлений нет (сдвиг HEAD из-за других навыков автора не в счёт), 10 — есть: коммиты и изменённые файлы, 1 — ошибка |
@@ -47,7 +48,7 @@
 ## Откат Autopilot на прошлую версию
 
 1. Найдите нужный коммит: `git log` в клоне `https://github.com/nick-vels/skills` или поле `commit` в прежнем lock.
-2. Впишите его хеш одной строкой в `kit/data/upstream.pin`.
+2. Впишите его хеш одной строкой в `kit/data/upstream.pin`, затем `python -m kit vendor` (обновит копию в `vendor/`).
 3. `python -m kit install` — файлы заменятся, если вы их не правили (иначе `LOCAL_CHANGES`), lock обновится.
 
 ## Типичные ситуации

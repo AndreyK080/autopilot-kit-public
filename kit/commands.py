@@ -99,9 +99,16 @@ def _apply_agents() -> None:
 
 def cmd_install(url: str = upstream.REPO_URL, pin_file: Path = PIN_FILE) -> int:
     pin = read_pin(pin_file)
-    src = upstream.fetch(pin, url=url)
+    vend = None
+    if url == upstream.REPO_URL:  # D56: копия оригинала лежит в репозитории kit — сеть не нужна
+        try:
+            vend = upstream.vendored(pin)
+        except upstream.VendorError as error:
+            print(f"Ошибка: {error}")
+            return 1
+    src = vend[0] if vend else upstream.fetch(pin, url=url)
     try:
-        commit = upstream.resolved_commit(src)
+        commit = vend[1] if vend else upstream.resolved_commit(src)
         hashes = upstream.hash_tree(src)
         report = upstream.install(src, upstream.default_targets(), upstream.read_lock())
         if any(i["status"] == upstream.LOCAL_CHANGES for i in report.values()):
@@ -112,7 +119,8 @@ def cmd_install(url: str = upstream.REPO_URL, pin_file: Path = PIN_FILE) -> int:
             upstream.write_lock(commit, hashes, source=url)
         stage_message = upstream.install_stage_copy(src)
     finally:
-        _cleanup(src)
+        if not vend:  # копию в vendor не удаляем
+            _cleanup(src)
     for target, item in report.items():
         print(f"{'без изменений' if item['status'] == 'unchanged' else 'установлено'}: {target}")
     print(f"Autopilot {commit[:12]}")
@@ -120,6 +128,18 @@ def cmd_install(url: str = upstream.REPO_URL, pin_file: Path = PIN_FILE) -> int:
     for message in install_own_skills():
         print(message)
     _apply_agents()
+    return 0
+
+
+def cmd_vendor(url: str = upstream.REPO_URL, pin_file: Path = PIN_FILE) -> int:
+    """Положить в vendor/ копию оригинала закреплённого коммита (для репозитория kit; установка идёт уже из неё)."""
+    pin = read_pin(pin_file)
+    src = upstream.fetch(pin, url=url)
+    try:
+        commit = upstream.resolved_commit(src)
+        print(f"Копия оригинала {commit[:12]}: {upstream.vendor_write(src, commit, url)}")
+    finally:
+        _cleanup(src)
     return 0
 
 
@@ -284,6 +304,8 @@ def cmd_update(url: str = upstream.REPO_URL, pin_file: Path = PIN_FILE, assume_y
             return 1
         upstream.write_lock(head, new_hashes, source=url)
         pin_file.write_text(head + "\n", encoding="utf-8")
+        if url == upstream.REPO_URL:  # D56: репозиторий kit хранит ту версию оригинала, на которой проверены швы
+            print(f"Копия оригинала обновлена: {upstream.vendor_write(src, head, url)}")
         print(upstream.install_stage_copy(src))
     finally:
         _cleanup(src)

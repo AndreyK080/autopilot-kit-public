@@ -14,6 +14,7 @@ COMMANDS = {
     "install": "установить Autopilot и навыки kit",
     "update": "обновить Autopilot (после проверки швов)",
     "check-update": "есть ли новая версия Autopilot на GitHub",
+    "vendor": "положить в vendor/ копию оригинала закреплённого коммита (D56)",
     "trial": "поставить новую версию в dev-песочницу и проверить швы",
     "status": "показать состояние установки",
     "doctor": "проверить окружение (--projects — и проекты)",
@@ -89,6 +90,8 @@ def main(argv: list[str] | None = None) -> int:
         return commands.cmd_status()
     if args.command == "update":
         return commands.cmd_update(assume_yes=args.yes)
+    if args.command == "vendor":
+        return commands.cmd_vendor()
     if args.command == "check-update":
         return commands.cmd_check_update()
     if args.command == "trial":
