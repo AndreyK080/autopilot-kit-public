@@ -57,18 +57,35 @@ Subagents that are in none of these rows (ADR agent, memory agent) keep the defa
 A role's model and effort come from the profile; they replace the model choice the `autopilot` skill
 describes for that subagent (for example `model: "sonnet"` on the Agent call).
 
+**Ticket class (D58).** The `autopilot` skill gives every ticket a class — `Модель: обычная` or
+`Модель: сильная` — and relaunches a ticket that failed once on the strong model (`phases/5-repair.md`).
+The `executor` role is the **обычная** class only; it must not swallow the other two cases, because a clear
+spec does not make every ticket a Sonnet ticket (a migration or a performance change can need the strong model):
+
+| Ticket | Launch |
+|---|---|
+| `Модель: обычная`, first attempt | the `executor` role as in §4 — the profile's model and effort |
+| `Модель: сильная` | the `executor` role with the **strong model** of the vendor (§4 says how); the effort stays the executor's |
+| a retry after a failed attempt (the fresh context in `phases/5-repair.md`) | the same: `executor` on the strong model |
+
+Under the `desktop-gate` preset the executor is already on the strong model — nothing extra to pass.
+
 ## 4. Launch with the role
 
 **Claude Code and Claude Desktop Gate** (vendors `claude`, `claude-gate`). Start the subagent with the Agent tool
 and `subagent_type: "autopilot-<role>"`
 (`autopilot-executor`, `autopilot-reviewer-spec`, `autopilot-reviewer-craft`, `autopilot-final-reviewer`).
-These agent files hold the model and effort from the profile. Do **not** pass a `model` parameter.
+These agent files hold the model and effort from the profile. Do **not** pass a `model` parameter —
+**one exception (D58):** for a `Модель: сильная` ticket or a retry (§3) pass `model: "opus"` to the same
+`autopilot-executor` call (the call's `model` overrides the agent file's; the file's effort stays).
 If the agent type is not found, tell the owner: «Агенты не установлены — запустите python -m kit install,
 затем откройте новый чат» — and do not silently use another type.
 
 **Codex.** Start the subagent with `collaboration.spawn_agent` and pass
 `model` and `reasoning_effort` from `resolved.json` for the role, with `fork_turns: "none"`
-(the app requires a fresh context for these overrides). Put the task in `message`.
+(the app requires a fresh context for these overrides). Put the task in `message`. For a `Модель: сильная`
+ticket or a retry (§3) pass the `strong` model from `~/.autopilot-kit/models.json` (`codex.tiers.strong`)
+instead of the executor's model, with the executor's `reasoning_effort`.
 
 ## 5. Check yourself (the orchestrator)
 

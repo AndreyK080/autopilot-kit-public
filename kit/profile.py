@@ -18,7 +18,7 @@ PRESETS: dict[str, dict[str, tuple[str, str]]] = {
         "executor": ("balanced", "medium"),
         "reviewer-spec": ("strong", "high"),
         "reviewer-craft": ("strong", "high"),
-        "final-reviewer": ("strong", "max"),
+        "final-reviewer": ("strong", "high"),  # D58: выше high усилие дорожает как следующая модель, прирост мал
     },
     "economy": {
         "executor": ("balanced", "medium"),

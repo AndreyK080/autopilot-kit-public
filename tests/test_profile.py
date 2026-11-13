@@ -19,7 +19,7 @@ def test_load_defaults_to_quality(home):
     loaded = profile.load()
     assert loaded.preset == "quality"
     assert loaded.roles["executor"] == ("balanced", "medium")
-    assert loaded.roles["final-reviewer"] == ("strong", "max")
+    assert loaded.roles["final-reviewer"] == ("strong", "high")
 
 
 def test_global_and_project_merge_by_role(home, tmp_path):
@@ -41,7 +41,7 @@ def test_resolve_both_vendors():
     p = profile.preset_profile("quality")
     claude = profile.resolve(p, "claude", models)
     assert claude["executor"] == ("sonnet", "medium")
-    assert claude["final-reviewer"] == ("opus", "max")
+    assert claude["final-reviewer"] == ("opus", "high")
     codex = profile.resolve(p, "codex", models)
     assert codex["executor"] == (models["codex"]["tiers"]["balanced"], "medium")
 
@@ -49,6 +49,7 @@ def test_resolve_both_vendors():
 def test_effort_downgraded_with_warning():
     models = {"codex": {"tiers": {"strong": "s", "balanced": "b", "fast": "f"}, "efforts": ["low", "medium", "high", "xhigh"]}}
     p = profile.preset_profile("quality")
+    p.roles["final-reviewer"] = ("strong", "max")  # пресет quality больше не просит max (D58) — задаём явно
     with pytest.warns(UserWarning, match="max"):
         resolved = profile.resolve(p, "codex", models)
     assert resolved["final-reviewer"] == ("s", "xhigh")
@@ -87,3 +88,13 @@ def test_write_roundtrip_and_backup(home, tmp_path):
     assert not list(path.parent.glob("*.bak-*"))
     profile.write(profile.preset_profile("quality"), path)
     assert len(list(path.parent.glob("profile.toml.bak-*"))) == 1
+
+
+def test_roles_skill_sends_strong_and_retried_tickets_to_the_strong_model():
+    """D58: роль executor — класс «обычная»; «сильная» и повтор идут на сильную модель, а не остаются на Sonnet."""
+    from kit import commands
+    text = " ".join((commands.KIT_ROOT / "skills" / "autopilot-roles" / "SKILL.md").read_text(encoding="utf-8").split())
+    for phrase in ("**Ticket class (D58).**", "`Модель: сильная`", "a retry after a failed attempt",
+                   'pass `model: "opus"` to the same `autopilot-executor` call',
+                   "`codex.tiers.strong`"):
+        assert phrase in text, phrase

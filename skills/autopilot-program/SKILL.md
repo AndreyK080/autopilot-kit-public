@@ -193,7 +193,10 @@ the tree, and the owner task stayed open an hour after the owner's «Приме�
   chat by that id. Then keep **reserve stage sessions**. First check that the recorded ones are alive: `program.py pool
   list`, and `get_session` for each id — «not found» or archived means it is dead (a move to another machine, a
   deleted chat): `program.py pool drop <id>`, silently (D34). A dead entry counts as a reserve session otherwise and
-  the reserve is never refilled. Only then `program.py pool need` prints how many are missing; for
+  the reserve is never refilled. Only then `program.py pool need` prints how many are missing — it grows with the
+  number of stages not yet started (2 up to 4, D57): every stage whose delivered predecessor's chat cannot be cleared
+  takes one reserve session, and the reserve can only be refilled in the owner's turns, so a reserve of two ran dry
+  after two stages (проект D, 12.11); for
   each, `start_session` (`initiation: "user_asked"`, `context: "fresh"`, `use_worktree: false`, no `cwd`,
   `permission_mode` = your own, `wake_when_done: true`, `title` «Резерв этапа · <проект>», `name` `reserve-<n>`,
   `prompt` = the output of `program.py pool-prompt`, unchanged), then `program.py pool add <session_id>`. Top the
@@ -333,7 +336,10 @@ refusal do not retry and do not work around — hand the command to the owner.
    `pool take --json` the next one (D34). `clear: true` → `mcp__ccd_session_mgmt__clear_session` on that id (load it by
    `ToolSearch`): the old stage's conversation is emptied — it stays in the app's history — and the chat keeps its
    folder, model and permissions. Refused (the owner pinned it or has it open on screen, it still works) → `pool take
-   --json` again. **Never send a stage task to a chat whose clearing was refused**: on its dirty history the run does
+   --json` again; if the refusal says the chat «still has live work» (a running background task, a queued message), it is
+   only temporary: `program.py pool release <that id>` first (D57) — the chat stays recyclable and is cleared at the next
+   stage start instead of being lost, while the reserve covers this one. A classifier refusal («auto mode»…) is not
+   temporary: no release. **Never send a stage task to a chat whose clearing was refused**: on its dirty history the run does
    not start (pilot S1: the classifier refused `clear_session`, the task went to a ~700-message chat, `ap.py init`
    never ran, and the stage had to be moved to a reserve chat by hand). Then `SendMessage` to it (`to` = that `local_…` id) with the output of `program.py signal <ID>`,
    unchanged (it starts «Задание этапа <ID>: <название>» and tells the chat to rename itself and run the stage) →

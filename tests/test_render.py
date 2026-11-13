@@ -59,7 +59,7 @@ def test_resolved_json_and_models_copy(tmp_path):
     path = tmp_path / "resolved.json"
     assert render.write_resolved(profile.preset_profile("quality"), models, path)
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["claude"]["final-reviewer"] == {"model": "opus", "effort": "max"}
+    assert data["claude"]["final-reviewer"] == {"model": "opus", "effort": "high"}
     assert data["codex"]["executor"]["model"] == models["codex"]["tiers"]["balanced"]
     assert not render.write_resolved(profile.preset_profile("quality"), models, path)
 

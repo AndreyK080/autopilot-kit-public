@@ -1080,7 +1080,7 @@ def test_watch_wakes_orchestrator_when_a_delivered_run_is_not_recorded(proj):
 
 
 def test_pool_keeps_reserve_sessions_and_signal_carries_the_stage_brief(proj):
-    assert program.cmd_pool(proj, "need", None) == str(program.POOL_SIZE)
+    assert program.cmd_pool(proj, "need", None) == str(program.pool_target(program.load(proj)))
     program.cmd_pool(proj, "add", "local_r1")
     program.cmd_pool(proj, "add", "local_r1")  # повтор не дублирует
     program.cmd_pool(proj, "add", "local_r2")
@@ -1218,7 +1218,7 @@ def test_pool_drop_removes_dead_session_and_refills_need(proj):
     assert "убрана local_old1" in program.cmd_pool(proj, "drop", "local_old1")
     assert program.cmd_pool(proj, "drop", "local_old1").endswith("не было)")  # повтор безопасен
     program.cmd_pool(proj, "drop", "local_old2")
-    assert program.cmd_pool(proj, "need", None) == str(program.POOL_SIZE)
+    assert program.cmd_pool(proj, "need", None) == str(program.pool_target(program.load(proj)))
     assert json.loads(program.cmd_pool(proj, "list", None)) == []
     with pytest.raises(program.ProgramError):
         program.cmd_pool(proj, "drop", None)
@@ -2114,3 +2114,28 @@ def test_watch_rewakes_a_stage_whose_session_died_after_the_first_wake(proj):
     memory[key]["at"] = stamp(-(program.WATCH_ESCALATE_MIN + 5))
     memory_path.write_text(json.dumps(memory), encoding="utf-8")
     assert watched(proj)["action"] == "notify_owner"  # владелец по-прежнему узнаёт через час тишины
+
+
+def test_pool_target_grows_with_pending_stages_and_release_returns_a_chat(proj):
+    # D57: резерв из двух сессий кончался через два этапа (боевой проект, 12.11): пополнить можно только в ходе владельца
+    data = program.load(proj)
+    pending = sum(1 for s in data["stages"] if s["status"] == "pending")
+    assert program.pool_target(data) == min(program.POOL_CAP, max(program.POOL_SIZE, pending))
+    for number in range(8):
+        data["stages"].append({**data["stages"][0], "id": f"X{number}", "status": "pending", "sessionId": None})
+    program.save(proj, data)
+    assert program.pool_target(program.load(proj)) == program.POOL_CAP
+    assert program.cmd_pool(proj, "need", None) == str(program.POOL_CAP)
+    program.cmd_pool(proj, "add", "local_r1")
+    assert program.cmd_pool(proj, "need", None) == str(program.POOL_CAP - 1)
+    # очистку отказали временно: отметка «использован» снимается, чат снова годится к следующему этапу
+    deliver_m1(proj)
+    program.cmd_bind(proj, "M1", "local_m1")
+    taken = json.loads(program.cmd_pool(proj, "take", None, as_json=True))
+    assert taken == {"sessionId": "local_m1", "clear": True, "from": "этап M1"}
+    assert [s["id"] for s in program.recyclable(program.load(proj))] == []
+    assert "снова доступен" in program.cmd_pool(proj, "release", "local_m1")
+    assert json.loads(program.cmd_pool(proj, "take", None, as_json=True))["sessionId"] == "local_m1"
+    assert "не было" in program.cmd_pool(proj, "release", "local_none")
+    with pytest.raises(program.ProgramError):
+        program.cmd_pool(proj, "release", None)

@@ -44,7 +44,7 @@
   orchestrator --session SID [--usage <JSON get_usage>]         # id чата оркестратора — его будит сторож (D31);
                                                              # --usage авторитетно подтверждает привод (T19.8)
   setup-check                                                # настроена ли папка проекта для kit: гейт, хуки, правила, git (D39)
-  pool add SID | pool drop SID | pool take [--json] | pool need | pool list | pool-prompt   # резерв сессий этапов (D31); drop — убрать мёртвую
+  pool add SID | pool drop SID | pool release SID | pool take [--json] | pool need | pool list | pool-prompt   # резерв сессий этапов (D31); drop — убрать мёртвую
                                                              # take --json: сначала сессия сданного этапа для очистки (D40), затем резерв
   signal ID                                                  # сообщение резервной сессии: задание этапа (D31)
   prompt ID --after-signal                                   # этап, созданный на паузе: начнёт по сигналу
@@ -1275,6 +1275,7 @@ def cmd_leftovers(root: Path, sid: str, done: bool, note: str | None) -> dict | 
 # сессии, пока может их запускать, и начинает этап, отправив резервной задание — сообщения можно слать из любого хода.
 
 POOL_SIZE = 2
+POOL_CAP = 4   # D57: резерв растёт вместе с числом неначатых этапов, но не больше — простаивающие сессии тоже занимают память
 SIGNAL_HEAD = "Задание этапа"
 # D40: запускать сессии приложение даёт только в ходе со словами владельца — резерв из хода по сообщению не пополнить.
 # Поэтому чат сданного этапа переиспользуется: оркестратор очищает его (`clear_session`, работает из хода по сообщению,
@@ -1294,6 +1295,13 @@ def recyclable(data: dict) -> list[dict]:
             seen.add(session)
             out.append(stage)
     return out
+
+
+def pool_target(data: dict) -> int:
+    """Сколько резервных сессий держать (D57): пополнить можно только в ходе владельца, а каждый этап, у которого очистка чата
+    сданного этапа отказана, берёт одну сессию — резерв из двух кончался через два этапа, и программа из восьми этапов вставала."""
+    pending = sum(1 for s in data["stages"] if s["status"] == "pending")
+    return min(POOL_CAP, max(POOL_SIZE, pending))
 
 
 def pool_prompt(data: dict) -> str:
@@ -1343,7 +1351,17 @@ def cmd_pool(root: Path, action: str, session: str | None, as_json: bool = False
         save(root, data)
         return taken["sessionId"]
     if action == "need":
-        return str(max(0, POOL_SIZE - len(pool)))
+        return str(max(0, pool_target(data) - len(pool)))
+    if action == "release":
+        # D57: очистку отказали временно («у сессии есть живая работа») — сессия не потеряна, к следующему этапу её можно очистить
+        if not session:
+            raise ProgramError("pool release требует id сессии")
+        released = [s for s in data["stages"] if s.get("sessionId") == session and s.get("recycled")]
+        for stage in released:
+            stage.pop("recycled", None)
+        if released:
+            save(root, data)
+        return f"чат {session}: снова доступен для очистки ({len(released)})" if released else f"чат {session}: отметки «использован» не было"
     return json.dumps(pool, ensure_ascii=False)
 
 
@@ -3182,7 +3200,7 @@ def build_parser() -> argparse.ArgumentParser:
     conf.add_argument("--absent", action="store_true",
                       help="сессия оркестратора в этом профиле не найдена — глушить программу до подтверждения (T19.9)")
     pl = sub.add_parser("pool")
-    pl.add_argument("action", choices=("add", "drop", "take", "need", "list"))
+    pl.add_argument("action", choices=("add", "drop", "take", "need", "list", "release"))
     pl.add_argument("session", nargs="?")
     pl.add_argument("--json", action="store_true")
     sub.add_parser("pool-prompt")
